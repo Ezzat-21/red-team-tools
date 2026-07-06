@@ -133,16 +133,16 @@ PYTHON TOOLS
 ======================================================
 
 Port checker:
-python3 ~/tools/port_check.py
+python3 ~/red-team-tools/python-tools/single_port_checker.py
 
 Port scanner:
-python3 ~/tools/port_scanner.py
+python3 ~/red-team-tools/python-tools/port_scanner.py
 
 Banner grabber:
-python3 ~/tools/banner_grab.py
+python3 ~/red-team-tools/python-tools/banner_grabber.py
 
 Full recon tool:
-python3 ~/tools/recon.py
+python3 ~/red-team-tools/python-tools/recon.py
 
 ======================================================
 TARGET LAB

@@ -15,7 +15,7 @@ Find files containing password:
 grep -r "password" /etc/ 2>/dev/null
 
 List users with real shells:
-cat /etc/passwd | grep -v "nologin\|false"
+cat /etc/passwd | grep -Ev "nologin\|false"
 
 Live log monitoring:
 tail -f /var/log/auth.log

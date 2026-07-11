@@ -1,15 +1,18 @@
-# Progress Log
+## July 2026 — Week 2
 
-## July 2026
+### Completed
+- Stage 1a Linux Mastery — done
+- Stage 1b Windows Fundamentals — done
+- Built 4 Python tools from scratch
+- Full OPSEC routine — disable history, clear logs, surgical clean
+- Found private keys on Metasploitable
+- Completed full recon on Metasploitable — all services documented
+- Started Stage 2 — watched first SQLi video
 
-### Day 1
-- Completed Stage 1a — Linux mastery
-- Solved OverTheWire Bandit 0-20
-- Built 4 Python tools — port scanner, banner grabber, recon tool
-- Set up GitHub repo
-- Started warm-up rotation system
+### Currently Working On
+- Stage 2 Web App Security
+- Rana Khalil SQLi series + PortSwigger labs
 
-### Tomorrow
-- Warm-up task before studying
-- Start Stage 1b — Windows fundamentals
-- NetworkChuck Windows for Hackers
+### Next
+- First PortSwigger SQLi lab
+- Continue SQLi series

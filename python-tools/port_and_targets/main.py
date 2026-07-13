@@ -3,7 +3,7 @@ import socket
 
 PORT = 80
 
-with open('Port & Targets/targets.txt', 'r') as f:
+with open('port_and_targets/targets.txt', 'r') as f:
     for line in f:
         ip = line.strip()
         s = socket.socket(socket.AF_INET,socket.SOCK_STREAM)

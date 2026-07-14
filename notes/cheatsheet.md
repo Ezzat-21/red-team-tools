@@ -350,6 +350,9 @@ Port 5432 PostgreSQL  8.3.0               HIGH
 Port 5900 VNC         protocol 3.3        HIGH
 Port 6667 IRC         UnrealIRCd          CRITICAL
 Port 8180 Tomcat      Apache Tomcat       HIGH
+Port 8787  TCP — unknown 
+Port 3632  TCP — distccd  
+ 
 
 ======================================================
 WEB APP SECURITY — SQL INJECTION

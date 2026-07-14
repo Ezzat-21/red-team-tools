@@ -1,0 +1,14 @@
+Scan started: 2026-07-14_10-56-27
+Target: 192.168.56.104
+Port 21 open - 220 (vsFTPd 2.3.4)
+Port 22 open - SSH-2.0-OpenSSH_4.7p1 Debian-8ubuntu1
+Port 23 open - no banner
+Port 25 open - 220 metasploitable.localdomain ESMTP Postfix (Ubuntu)
+Port 53 open - no banner
+Port 80 open - no banner
+Port 111 open - no banner
+Port 139 open - no banner
+Port 445 open - no banner
+Port 512 open - Where are you?
+Port 513 open - no banner
+Port 514 open - getnameinfo: Temporary failure in name resolution

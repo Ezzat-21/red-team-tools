@@ -237,6 +237,14 @@ Check ARP table: [DONE]
 arp -a
 what i learned: shows IP to MAC address mappings on my network
 
+MySQL direct access: [DONE]
+mysql -h 192.168.56.104 -u root --skip-ssl
+no password required — critical misconfiguration
+databases found: dvwa, metasploit, mysql, owasp10, tikiwiki
+dvwa users table contains MD5 hashed passwords
+admin password hash: 5f4dcc3b5aa765d61d8327deb882cf99 = "password"
+crack hashes: crackstation.net or hashcat in Stage 3
+
 ======================================================
 SSH
 ======================================================

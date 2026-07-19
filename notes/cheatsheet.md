@@ -251,6 +251,13 @@ shows entire conversation as readable text
 FTP: credentials visible in plaintext
 use this on any captured session to read the full exchange
 
+SMTP username enumeration: [DONE]
+nc TARGET_IP 25
+VRFY username
+252 = user exists
+550 = user does not exist
+real use: build username list for brute force attacks
+
 ======================================================
 SSH
 ======================================================

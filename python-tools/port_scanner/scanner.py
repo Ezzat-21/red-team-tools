@@ -18,9 +18,9 @@ for port in range(1,1025):
             banner = s.recv(1024).decode('utf-8').strip()
         except:
             banner = 'no banner'
-        print(f"Port {port} open - {banner}")
-        with open(filename , 'a') as f:
-            f.write(f"Port {port} open - {banner}\n")
+        line = f"Port {port} open - {banner}"
+        print(line)
+        f.write(line + "\n")
     s.close()
     
 

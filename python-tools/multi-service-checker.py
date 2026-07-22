@@ -2,7 +2,6 @@ import socket
 
 IP = '192.168.56.104'
 results = {}
-
 # FTP check
 s = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
 s.settimeout(2)
@@ -18,7 +17,7 @@ if s.connect_ex((IP,21)) == 0:
         results['ftp'] = 'ERROR'
 else:
     results['ftp'] = 'CLOSED'
-s.close()
+s.close
     
 # Telnet check
 s = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
@@ -29,6 +28,7 @@ if s.connect_ex((IP,23)) == 0:
         results['telnet'] = f"OPEN — {banner[:50]}"
     except:
         results['telnet'] = f"OPEN — no banner"
+
 s.close()
 
 # MySQL check
@@ -40,9 +40,32 @@ else:
     results['mysql'] = 'CLOSED'
 s.close()
 
+
+# SMTP check
+s = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
+s.settimeout(2)
+if s.connect_ex((IP,25)) == 0:
+    results['smtp'] = 'OPEN'
+    try:
+        s.recv(1024)
+        for service in ['root','msfadmin','admin']:
+            msg = f"VRFY {service}\r\n".encode('utf-8')
+            s.send(msg)
+            r = s.recv(1024).decode('utf-8').strip()
+            if '252' in r:
+                print(f"{service} exists")
+    except Exception as e:
+        print("SMTP Error:", e)
+
+else:
+    results['smtp'] = 'CLOSED'
+s.close()
+
 print(f"""
 === Service Summary for {IP} ===
 FTP anonymous login: {results['ftp']}
 Telnet:              {results['telnet']}
 MySQL port:          {results['mysql']}
+SMTP PORT:           {results['smtp']}
 """)
+

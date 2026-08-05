@@ -715,6 +715,46 @@ why it exists: outdated jQuery treats HTML strings as DOM elements
                untrusted location.hash passed directly to $()
 fix: upgrade jQuery — never pass untrusted input to $() selector
 
+Lab 07 XSS — Reflected XSS into HTML attribute — DONE
+type: reflected
+source: search parameter
+sink: value attribute of input element
+context: double-quoted HTML attribute value state
+encoding: angle brackets encoded, quotes NOT encoded
+breakout: yes — use " to close attribute value
+key insight: onclick requires interaction — use autofocus+onfocus for automatic execution
+payload: " autofocus onfocus="alert(1)
+why it exists: quotes not encoded so attribute breakout possible
+fix: encode all special characters including quotes in attribute context
+
+Lab 08 XSS — Stored XSS in href attribute — DONE
+type: stored
+source: website field in comment form
+sink: href attribute of author link element
+context: URL context — entire href value controlled
+encoding: double quotes encoded — irrelevant since no breakout needed
+breakout: no — attacker controls entire href value
+payload: javascript:alert(1)
+why it exists: dangerous URL schemes not validated or blocked
+fix: allowlist only safe schemes — https: http: and relative URLs
+
+Lab 09 XSS — Reflected XSS into JavaScript string — DONE
+type: reflected
+source: search parameter
+sink: JavaScript string variable assignment — var searchTerms = 'USER_INPUT'
+context: JavaScript string context — single-quoted
+encoding: angle brackets HTML-encoded — irrelevant in JS context
+interpreter: JavaScript parser — not HTML parser
+breakout: yes — use ' to close the string
+payload: ';alert(1);//
+reasoning:
+  ' closes the JavaScript string
+  ; terminates the current statement
+  alert(1); injects new JavaScript statement
+  // comments out remainder to prevent syntax errors
+why it exists: user input concatenated into JavaScript string without JS escaping
+fix: JSON-encode user data when embedding in JavaScript — never concatenate raw input
+
 ======================================================
 THINGS I STILL NEED TO PRACTICE
 ======================================================

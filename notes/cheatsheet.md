@@ -755,6 +755,40 @@ reasoning:
 why it exists: user input concatenated into JavaScript string without JS escaping
 fix: JSON-encode user data when embedding in JavaScript — never concatenate raw input
 
+Lab 10 XSS — DOM XSS inside select element — DONE
+type: DOM
+source: storeId URL parameter
+sink: document.write() inside option element
+context: HTML text inside option element
+breakout: yes — close option and select elements first
+payload: </option></select><img src=x onerror=alert(1)>
+reasoning: HTML inside option is treated as content
+           must escape both option and select before injecting executable HTML
+why it exists: document.write() used with unsanitized user input
+fix: use createElement and textContent instead of document.write()
+
+Lab 11 XSS — DOM XSS via AngularJS expression — DONE
+type: DOM
+source: search parameter
+sink: AngularJS expression evaluator
+context: AngularJS expression context — inside ng-app scope
+interpreter: AngularJS expression parser — not HTML or JS parser
+encoding: angle brackets and quotes encoded — irrelevant in this context
+breakout: no — already inside expression context
+detection: inject {{7*7}} — if page shows 49 = AngularJS is evaluating expressions
+payload: {{$on.constructor('alert(1)')()}}
+note: looked at solution — AngularJS sandbox escape requires framework knowledge
+why it exists: untrusted input evaluated as AngularJS expression
+fix: never evaluate user input as framework expressions
+               render user data as plain text only
+
+key concept — template injection vs XSS:
+when a framework evaluates user input as expressions
+the interpreter is the framework parser not the browser HTML parser
+{{}} is the AngularJS expression delimiter
+$on.constructor accesses the Function constructor to execute arbitrary JS
+this is a sandbox escape technique specific to AngularJS
+
 ======================================================
 THINGS I STILL NEED TO PRACTICE
 ======================================================

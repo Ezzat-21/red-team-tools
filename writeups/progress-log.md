@@ -38,10 +38,24 @@ Ahmed Ezzat — Red Team Roadmap
 - Shadow file extracted and transferred via netcat
 - SMTP username enumeration via VRFY
 
+## August 2026 — Week 4-5
+
+### Completed
+- XSS Labs 1-11 with full structured methodology
+- Paused labs for 3 days to study browser parsing fundamentals
+- Studied HTML parser states, JS contexts, URL contexts
+- Developed structured analysis methodology for every lab
+- Manual FTP enumeration with netcat
+- SMTP username enumeration — confirmed root, msfadmin, user, bin, daemon, sys
+- VNC access with default credentials — root GUI desktop
+- Bindshell instant root via port 1524
+- Built vulnerability report script with risk ratings
+
 ### Currently Working On
-- Stage 2 continuing — XSS next
+- XSS Labs — continuing from Lab 12
+- Warm-up rotation maintaining Linux, networking, Python skills
 
 ### Next
-- Watch Rana Khalil XSS intro video
-- Solve XSS Lab 1
-- Start XSS section in cheatsheet
+- Complete remaining XSS labs
+- Move to Authentication vulnerabilities
+- Then Access Control / IDOR

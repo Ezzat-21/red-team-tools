@@ -837,6 +837,100 @@ when framework evaluates user input as expressions
 $on.constructor accesses Function constructor to execute arbitrary JS
 this is a sandbox escape technique specific to AngularJS
 
+Lab 12 XSS — Reflected DOM XSS via eval() — DONE
+type: reflected DOM XSS
+source: window.location.search
+sink: eval('var searchResultsObj = ' + this.responseText)
+context: JavaScript string value inside JSON object
+interpreter: JavaScript engine — eval()
+encoding: server escapes " as \" and \ as \\
+breakout: yes — use \ to escape the escape character before "
+payload: \"};alert(1);//
+reasoning:
+  \ escapes the server's escape character
+  " then terminates the JavaScript string
+  }; closes the JSON object and statement
+  alert(1); injects new JavaScript
+  // comments out remainder
+key insight: vulnerability in client-side JS logic, not HTML page
+             inspect AJAX responses in Burp, not just page source
+             eval() executes anything — never use it with untrusted data
+why it exists: eval() used to process JSON instead of JSON.parse()
+fix: replace eval() with JSON.parse() — parses without executing
+attacker impact: executes arbitrary JavaScript in victim browser
+
+Lab 13 XSS — Stored DOM XSS via broken escaping — DONE
+type: stored DOM XSS
+source: comment field
+sink: innerHTML after escapeHTML() function
+context: HTML context — innerHTML
+interpreter: HTML parser
+encoding: custom escapeHTML() replaces only FIRST < and >
+           uses string replace not regex — only first occurrence affected
+breakout: no — just bypass the broken sanitization
+bypass technique: prepend <> to consume the escaping budget
+                  real payload follows unescaped
+payload: <><img src=x onerror=alert(1)>
+code analysis:
+  html.replace('<','&lt;') — replaces first < only
+  html.replace('>','&gt;') — replaces first > only
+  remaining tags left unescaped — browser executes them
+why it exists: incorrect manual sanitization — string replace not global regex
+fix: use /</g and />/g regex for global replacement
+     better: use textContent instead of innerHTML
+     better: use DOMPurify if HTML rendering required
+attacker impact: fires for every visitor who views the comment
+
+Lab 14 XSS — Reflected XSS with WAF bypass — DONE
+type: reflected XSS
+source: search parameter
+sink: HTML response
+context: HTML context
+WAF: blocks most common tags and attributes
+breakout: no — already in HTML context
+
+WAF bypass methodology:
+1. test common tags — identify which ones are blocked
+2. use Burp Intruder to fuzz all HTML tags — find allowed ones
+3. use Burp Intruder to fuzz all event handlers on allowed tag
+4. identify event that fires without user interaction
+5. engineer trigger mechanism if event needs external cause
+
+allowed tag: <body>
+allowed event: onresize
+why onresize: fires when viewport/iframe dimensions change
+              can be triggered programmatically without user interaction
+
+trigger mechanism: iframe that changes its own width on load
+outer exploit page forces resize of inner iframe
+resize event fires inside iframe — onresize executes
+
+final payload injected: <body onresize=print()>
+URL encoded for search parameter:
+%3Cbody%20onresize%3Dprint%28%29%3E
+
+delivery exploit:
+<iframe width="50px"
+        onload="this.style.width='100px'"
+        src="LAB-URL/?search=%3Cbody%20onresize%3Dprint%28%29%3E">
+</iframe>
+
+attack flow:
+exploit server → iframe loads lab → width changes on load →
+resize event fires → onresize=print() executes → lab solved
+
+URL encoding reference:
+< = %3C    > = %3E    space = %20
+= = %3D    ( = %28    ) = %29
+
+key lesson: WAF is not a fix for XSS — proper output encoding is
+            WAFs block known patterns — creative combinations bypass them
+            enumerate what is allowed, not just what is blocked
+
+why it exists: WAF used as primary defense instead of output encoding
+fix: context-aware output encoding — WAF as additional layer only
+attacker impact: fires in victim browser without any interaction required
+
 ======================================================
 THINGS I STILL NEED TO PRACTICE
 ======================================================

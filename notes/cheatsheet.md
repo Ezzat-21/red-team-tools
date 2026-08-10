@@ -344,6 +344,17 @@ why dangerous: no encryption — credentials captured by Wireshark
                executes commands on remote machine
 use in Stage 3: exploit with Metasploit auxiliary module
 
+rlogin service: [DONE]
+port 513 TCP
+nc connects but rlogin requires specific client protocol to interact
+use: rlogin -l username 192.168.56.104
+dangerous because:
+- no encryption — all traffic visible in Wireshark
+- trust via .rhosts files — no password if your IP is trusted
+- obsolete — replaced by SSH
+find .rhosts files: find / -name ".rhosts" 2>/dev/null
+if .rhosts exists with your IP — rlogin connects with no password
+
 ======================================================
 SSH
 ======================================================

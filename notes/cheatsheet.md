@@ -1060,6 +1060,81 @@ check lab notes for browser restrictions — some techniques are browser-specifi
 why it exists: quotes not encoded — attribute context breakout possible
 fix: encode quotes alongside angle brackets in attribute context
 
+Lab 18 XSS — Reflected XSS — JS string with ' and \ escaped — DONE
+type: reflected XSS
+source: search parameter
+sink: var searchTerms = 'USER_INPUT'
+context: JavaScript string inside script tag
+encoding: ' escaped, \ escaped, angle brackets ALLOWED
+key insight: when JS string is locked down — attack the HTML layer instead
+             close the script tag, open a new one
+payload: </script><script>alert(1)</script>
+reasoning: HTML parser sees </script> and closes the script block
+           new <script> tag opens fresh JS context
+           no need to break out of the string at all
+why it exists: angle brackets not encoded inside script context
+fix: encode < and > inside script context, use JSON encoding for data
+
+Lab 19 XSS — Reflected XSS — JS string with angle brackets encoded and ' escaped — DONE
+type: reflected XSS
+source: search parameter
+sink: var searchTerms = 'USER_INPUT'
+context: JavaScript string inside script tag
+encoding: < > " encoded, ' escaped, \ ALLOWED
+key insight: backslash neutralizes the escape before the single quote
+payload: \';alert(1);//
+reasoning:
+  server escapes ' to \'
+  injecting \ before ' makes it \\' — backslash is escaped, quote is free
+  ' then closes the JS string
+  ; terminates statement
+  alert(1); injects code
+  // comments remainder
+why it exists: backslash not escaped — escaping mechanism manipulated
+fix: escape both ' and \ — neither should pass through raw
+
+Lab 20 XSS — Stored XSS into onclick via HTML entity encoding — DONE
+type: stored XSS
+source: comment author website field
+sink: onclick event handler — single-quoted JS string inside href
+context: single-quoted JavaScript string inside HTML attribute onclick
+encoding: < > " encoded, ' escaped, \ escaped
+key insight: HTML entities are decoded by HTML parser BEFORE JS executes
+             ' is escaped but &#x27; passes through and is decoded to ' at runtime
+payload: &#x27;);alert(1);//
+reasoning:
+  &#x27; is HTML entity for '
+  HTML parser decodes it to ' before onclick JS is interpreted
+  ' closes the JS string
+  ); closes the function call
+  alert(1); injects code
+  // comments remainder
+two-parser bypass: HTML parser decodes entity → JS parser sees raw '
+why it exists: JS escaping applied but HTML entity encoding not considered
+fix: apply both JS escaping AND HTML encoding — understand parser order
+
+Lab 21 XSS — Reflected XSS into template literal — DONE
+type: reflected XSS
+source: search parameter
+sink: var message = backtick 0 search results for '${USER_INPUT}' backtick
+context: JavaScript template literal
+encoding: < > ' " \ backtick all Unicode-escaped
+breakout: no — already inside expression interpolation context
+key insight: template literals evaluate ${...} as JS expressions
+             no escaping needed — just inject inside ${}
+payload: ${alert(1)}
+analogy: same as Python f-strings — ${} evaluates JavaScript
+reasoning: ${} creates an expression slot inside the template literal
+           injecting alert(1) inside ${} executes it directly
+why it exists: untrusted input inside template literal — ${} not escaped
+fix: never place untrusted input inside template literals
+     use safe serialization — JSON.stringify before embedding
+
+template literal syntax:
+backtick string backtick — uses backticks not quotes
+${expression} — evaluates any JS expression inline
+similar to Python f-strings: f"{variable}"
+
 ======================================================
 THINGS I STILL NEED TO PRACTICE
 ======================================================

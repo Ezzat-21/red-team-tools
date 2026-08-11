@@ -942,6 +942,110 @@ why it exists: WAF used as primary defense instead of output encoding
 fix: context-aware output encoding — WAF as additional layer only
 attacker impact: fires in victim browser without any interaction required
 
+Lab 15 XSS — Reflected XSS with custom tags allowed — DONE
+type: reflected XSS
+source: search parameter
+sink: HTML response
+context: HTML context
+WAF: blocks standard HTML tags — allows custom/unknown elements
+breakout: no — inject directly as custom element
+
+custom element technique:
+<xss id=x onfocus=alert(document.cookie) tabindex=1>
+tabindex=1 — makes element focusable
+id=x — allows targeting via URL fragment #x
+onfocus — fires when element receives focus
+
+delivery: location redirect to lab URL with #x fragment
+          #x causes browser to focus element with id=x
+          onfocus fires automatically — no user interaction
+
+exploit server payload:
+<script>location = 'LAB_URL/?search=<xss id=x onfocus=alert(document.cookie) tabindex=1>#x';</script>
+
+why iframe failed: application refused to load inside iframe
+fix: use location redirect instead of iframe
+
+key lesson: blacklists that block standard tags still allow custom elements
+            browsers treat unknown elements as valid inline elements
+            any element can have event handlers regardless of whether it is standard HTML
+
+why it exists: blacklist-based WAF — no contextual output encoding
+fix: encode all user input before inserting into HTML context
+
+Lab 16 XSS — Reflected XSS via SVG animateTransform — DONE
+type: reflected XSS
+source: search parameter
+sink: HTML/SVG response
+context: HTML/SVG context
+WAF: blocks common HTML tags and most event handlers
+     allows SVG elements and some SVG-specific events
+breakout: no — inject directly as SVG markup
+interpreter: HTML parser then SVG parser
+
+SVG attack chain:
+SVG is markup not just images — SVG elements have attributes and events
+animateTransform — SVG animation element — starts automatically on render
+onbegin — fires when SVG animation begins — no user interaction needed
+
+allowed elements: svg, circle, animateTransform
+allowed event: onbegin
+
+final payload:
+<svg>
+  <rect width="50" height="50">
+    <animateTransform attributeName="transform" type="rotate"
+      from="0" to="360" dur="2s" onbegin="alert(1)">
+    </animateTransform>
+  </rect>
+</svg>
+
+attack chain:
+animateTransform starts automatically → onbegin fires → alert(1) executes
+
+key lesson: SVG has its own events not in standard HTML event lists
+            WAF enumeration should include SVG-specific elements and events
+            attack surface is larger than just HTML tags
+
+why it exists: blacklist missed SVG-specific attack surface
+fix: contextual output encoding — allowlist SVG sanitizer if SVG required
+
+Lab 17 XSS — Reflected XSS in canonical link tag — DONE
+type: reflected XSS
+source: test URL parameter
+sink: href attribute of canonical link element
+context: double-quoted HTML attribute value context
+encoding: angle brackets encoded — attribute injection still possible
+breakout: yes — escape href attribute with '
+interpreter: HTML parser
+note: only works in Chrome — Chrome-specific behavior
+
+canonical link tag context:
+<link rel="canonical" href="https://site.com/?USER_INPUT">
+angle brackets blocked — cannot inject new elements
+but quotation marks not blocked — attribute injection possible
+
+accesskey technique:
+accesskey attribute associates element with keyboard shortcut
+inject accesskey + onclick into the existing link element
+simulated user activates keyboard shortcut → onclick fires
+
+payload: ?'accesskey='x'onclick='alert(1)'
+result in HTML: href="..." accesskey='x' onclick='alert(1)'
+
+attack chain:
+attribute injection → accesskey=x → keyboard shortcut pressed → onclick → alert(1)
+
+key lessons:
+encoding angle brackets does not prevent attribute injection
+always check if quotation marks are also encoded
+accesskey works on any HTML element including link
+onclick on link fires when element is activated via accesskey
+check lab notes for browser restrictions — some techniques are browser-specific
+
+why it exists: quotes not encoded — attribute context breakout possible
+fix: encode quotes alongside angle brackets in attribute context
+
 ======================================================
 THINGS I STILL NEED TO PRACTICE
 ======================================================

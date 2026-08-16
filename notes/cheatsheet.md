@@ -1163,6 +1163,99 @@ key lesson: XSS + CSRF = complete account takeover
             fixing XSS automatically fixes CSRF bypass
             CSRF protection only works when attacker cannot read page content
             
+Lab 25 XSS — AngularJS sandbox escape without strings — WATCHED ONLY
+concept: AngularJS sandbox restricts which JS expressions can execute
+         bypass requires using AngularJS internals without $eval or strings
+         uses constructor chains and array methods to reach Function()
+real bug bounty approach:
+  identify AngularJS version
+  search HackTricks → AngularJS sandbox escape
+  try known payloads for that version
+  adapt based on what is filtered
+resources:
+  HackTricks: AngularJS sandbox escape
+  PayloadsAllTheThings: XSS injection
+key lesson: framework-specific attacks require framework knowledge
+            look up known techniques — do not reinvent from scratch
+            
+Lab 26 XSS — AngularJS sandbox escape + CSP bypass — WATCHED ONLY
+type: reflected XSS
+source: search parameter
+context: AngularJS expression context inside CSP-protected page
+WAF/protection: CSP blocks inline scripts and external resources
+                AngularJS sandbox restricts expression evaluation
+
+two layers of protection:
+layer 1: CSP — prevents inline script execution and external resource loading
+layer 2: AngularJS sandbox — restricts which expressions can execute
+
+why this is expert level:
+requires knowing AngularJS internals deeply
+requires understanding CSP directives and finding allowed bypass paths
+combines two separate bypass techniques simultaneously
+
+concept understood from video:
+CSP bypass uses AngularJS itself as an allowed script source
+since AngularJS is whitelisted by CSP, its expression evaluator runs
+sandbox escape uses constructor chains to reach Function() constructor
+Function() can execute arbitrary JavaScript even inside the sandbox
+
+real bug bounty approach:
+identify AngularJS version on target
+search HackTricks — AngularJS sandbox escape payloads by version
+check CSP header — identify what is whitelisted
+look for whitelisted scripts that can be abused as gadgets
+
+key lesson:
+CSP is only as strong as what it whitelists
+if a whitelisted script has dangerous evaluation behavior
+that script becomes the bypass vector
+AngularJS is a known CSP bypass gadget when whitelisted
+
+resources:
+HackTricks: AngularJS sandbox escape
+PortSwigger: CSP bypass techniques
+PayloadsAllTheThings: XSS CSP bypass
+
+fix: do not whitelist AngularJS in CSP if possible
+     use strict-dynamic CSP directive
+     upgrade or remove AngularJS from production applications
+  
+Lab 27 XSS — Reflected XSS with event handlers and href blocked — DONE
+type: reflected XSS
+source: search parameter
+sink: HTML/SVG context
+context: SVG context
+WAF: event handlers blocked, a href blocked
+     allowed: svg, a, animate elements
+breakout: no
+
+SVG animate attribute modification technique:
+animate element can modify attributes of other SVG elements
+used to set href on <a> element to javascript: URL
+avoids needing event handlers entirely
+
+payload:
+<svg>
+  <a>
+    <text x="10" y="30">Click me</text>
+    <animate attributeName="href" values="javascript:alert(1)">
+    </animate>
+  </a>
+</svg>
+
+attack chain:
+reflected input → svg → animate modifies a href →
+href becomes javascript:alert(1) → user clicks → alert fires
+
+key lessons:
+blocking on* events does not prevent all XSS
+SVG animate can modify element attributes dynamically
+attack delivery and execution can be separate mechanisms
+enumeration of allowed attributes is as important as allowed tags
+
+why it exists: SVG animation functionality not considered in WAF rules
+fix: contextual output encoding — allowlist SVG sanitizer                             
 
 ======================================================
 THINGS I STILL NEED TO PRACTICE

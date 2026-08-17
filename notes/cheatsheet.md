@@ -369,6 +369,14 @@ meaning: trust ALL hosts, trust ALL users — no authentication required
 impact: anyone can rlogin as any user including root with no password
 this is the most dangerous .rhosts configuration possible
 
+SSH vs FTP traffic comparison: [DONE]
+SSH: all traffic encrypted — Wireshark shows binary gibberish
+     credentials, commands, responses — all unreadable to sniffer
+FTP: all traffic plaintext — Wireshark shows everything
+     USER command visible, PASS command visible, all data readable
+conclusion: SSH replaced Telnet and FTP precisely because of this
+            any protocol without encryption is dangerous on shared networks
+
 ======================================================
 SSH
 ======================================================

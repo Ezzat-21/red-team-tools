@@ -1263,7 +1263,62 @@ attack delivery and execution can be separate mechanisms
 enumeration of allowed attributes is as important as allowed tags
 
 why it exists: SVG animation functionality not considered in WAF rules
-fix: contextual output encoding — allowlist SVG sanitizer                             
+fix: contextual output encoding — allowlist SVG sanitizer 
+
+Lab 28 XSS — Reflected XSS in JavaScript URL with blocked characters — WATCHED ONLY
+type: reflected XSS
+source: search parameter
+context: JavaScript URL context
+protection: certain characters blocked to prevent XSS
+concept: input reflected inside a javascript: URL
+         blocked characters force use of alternative JS syntax
+         throw statement can be used with onerror handler
+         allows calling alert with a string argument without parentheses containing blocked chars
+key technique: javascript:throw/onerror combination to bypass character filtering
+real bug bounty: search for javascript: URL reflection points
+                 enumerate which characters are blocked
+                 use HackTricks JS URL bypass payloads
+why it exists: character blacklist instead of proper URL scheme validation
+fix: validate URL schemes — only allow http: and https:
+
+Lab 29 XSS — Reflected XSS protected by strict CSP with dangling markup — WATCHED ONLY
+type: XSS / form hijacking
+source: reflected input
+context: HTML context with strict CSP
+protection: strict CSP prevents script execution and external resource loading
+concept: dangling markup attack
+         when script execution is blocked by CSP
+         inject unclosed HTML tags to capture page content
+         dangling img tag with src pointing to attacker server
+         browser completes the tag by consuming subsequent page HTML
+         CSRF token gets sent to attacker as part of the URL
+requires: Burp Collaborator to receive exfiltrated data
+attack chain:
+  inject unclosed tag → browser captures CSRF token in URL →
+  sends it to attacker server → attacker uses token to change victim email
+key lesson: CSP that blocks scripts does not prevent all data exfiltration
+            dangling markup works even when JavaScript is fully blocked
+why it exists: CSP not strict enough to prevent all injection attacks
+fix: use strict CSP with nonces, sanitize all reflected input
+
+Lab 30 XSS — Reflected XSS protected by CSP with CSP bypass — WATCHED ONLY
+type: reflected XSS
+source: reflected input
+context: CSP-protected page
+protection: CSP restricts script execution
+concept: CSP bypass using script-src with JSONP or trusted endpoints
+         some CSP policies whitelist domains that serve user-controlled content
+         attacker finds a whitelisted endpoint that reflects their input
+         uses that endpoint as a script source to execute arbitrary JS
+note: intended solution only works in Chrome
+requires: identifying a whitelisted domain with a JSONP or open redirect endpoint
+key lesson: CSP is only as strong as what it whitelists
+            any whitelisted domain with dangerous behavior breaks CSP
+real bug bounty: check CSP header for whitelisted domains
+                 test each whitelisted domain for JSONP endpoints
+                 search: site:whitelisted-domain.com jsonp callback
+why it exists: CSP whitelist includes domains with exploitable endpoints
+fix: use strict-dynamic CSP with nonces instead of domain whitelists                            
 
 ======================================================
 THINGS I STILL NEED TO PRACTICE

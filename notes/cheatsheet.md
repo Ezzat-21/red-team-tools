@@ -21,6 +21,13 @@ Find SUID binaries owned by root that are world-executable: [DONE]
 find / -perm -4000 -perm -o+x -user root 2>/dev/null
 what i learned: more specific search — filters to root-owned SUID files only
 
+SUID binary triage — what makes it exploitable: [TAUGHT]
+what i learned: SUID + unfamiliar name is NOT the test
+                real test = does an interactive/shell-breakout path exist
+                nmap --interactive is exploitable because it drops to a shell
+                ssh-keysign, pt_chown are standard — narrow single-purpose, no shell escape
+why it matters: stops me wasting time chasing binaries that only look suspicious
+
 Find writable files: [DONE]
 find / -writable -type f 2>/dev/null
 what i learned: finds files anyone can write to
@@ -238,6 +245,19 @@ nmap -sS TARGET_IP
 what i learned: sends SYN but never completes the handshake
                harder to detect than a full TCP connect scan
                needs root to run
+               
+TCP three-way handshake — sequence numbers: [TAUGHT]
+1. Client -> Server: SYN, seq=X (X = random Initial Sequence Number)
+2. Server -> Client: SYN-ACK, seq=Y, ack=X+1
+3. Client -> Server: ACK, seq=X+1, ack=Y+1
+what i learned: seq = "my data starts here", ack = "next byte i expect from you"
+                ack is always (other side's seq) + 1 during handshake
+                two separate counters — one per direction
+                ISNs are random, not counters — prevents sequence prediction attacks
+why it matters: historical attack class (Mitnick 1994) relied on predictable ISNs
+                modern OS randomization defeats this — still relevant on legacy/embedded stacks
+verified by: captured handshake in Wireshark between Kali and Metasploitable
+               
 
 Script scan: [DONE]
 nmap -sC TARGET_IP

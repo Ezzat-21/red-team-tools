@@ -1340,6 +1340,58 @@ real bug bounty: check CSP header for whitelisted domains
 why it exists: CSP whitelist includes domains with exploitable endpoints
 fix: use strict-dynamic CSP with nonces instead of domain whitelists                            
 
+Lab 1 — Username enumeration via different responses — DONE
+method: sent login request to Intruder, ran candidate username list with fixed
+        wrong password
+finding: all response lengths equal except one outlier -> confirmed valid username
+username found: access
+repeated same technique: fixed username=access, varied password via Intruder
+password found: mobilemail
+why it works: app returns a differently-sized response for valid vs invalid
+              username, even though the displayed error text may look the same
+fix: return identical response (length, status, timing) regardless of whether
+     username or password was wrong
+     
+     
+======================================================
+WEB APP SECURITY — AUTHENTICATION VULNERABILITIES
+======================================================
+
+What Authentication is: identifies the user and confirms they are who they say they are
+Authentication vs Authorization:
+  Authentication = "who are you?" — proving identity (login)
+  Authorization = "what are you allowed to do?" — permissions after login
+  these chain together — broken auth gets you IN as someone, broken authorization
+  lets you do things you shouldn't once you're in
+
+Authentication vulnerabilities — common causes:
+weak password requirements
+improper restriction of authentication attempts
+verbose error messages
+vulnerable transmission of credentials
+insecure forgot password functionality
+defects in multistage login mechanisms
+insecure storage of credentials
+
+Impact: unauthorized access to the app — confidentiality, integrity, availability
+
+Core technique across this whole category: response diffing
+  not a single payload like SQLi/XSS — look for a BEHAVIORAL DIFFERENCE across
+  many attempts (response length, status code, timing, text)
+  Burp Intruder = primary tool for this category
+
+Ways an app leaks valid usernames without meaning to:
+  different error message text ("Invalid username" vs "Invalid password")
+  same message, different status code (200 vs 302, 200 vs 404)
+  same message, different response TIME (password hash only runs if username is valid)
+  same message, subtle formatting/length difference
+
+Username enumeration + brute-force = same technique, two stages:
+  stage 1: fixed wrong password, vary username, diff responses -> find valid username
+  stage 2: fixed valid username, vary password, diff responses -> find valid password
+  
+  
+  
 ======================================================
 THINGS I STILL NEED TO PRACTICE
 ======================================================

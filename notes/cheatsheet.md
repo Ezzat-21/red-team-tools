@@ -1352,19 +1352,7 @@ real bug bounty: check CSP header for whitelisted domains
                  search: site:whitelisted-domain.com jsonp callback
 why it exists: CSP whitelist includes domains with exploitable endpoints
 fix: use strict-dynamic CSP with nonces instead of domain whitelists                            
-
-Lab 1 — Username enumeration via different responses — DONE
-method: sent login request to Intruder, ran candidate username list with fixed
-        wrong password
-finding: all response lengths equal except one outlier -> confirmed valid username
-username found: access
-repeated same technique: fixed username=access, varied password via Intruder
-password found: mobilemail
-why it works: app returns a differently-sized response for valid vs invalid
-              username, even though the displayed error text may look the same
-fix: return identical response (length, status, timing) regardless of whether
-     username or password was wrong
-     
+  
      
 ======================================================
 WEB APP SECURITY — AUTHENTICATION VULNERABILITIES
@@ -1403,7 +1391,63 @@ Username enumeration + brute-force = same technique, two stages:
   stage 1: fixed wrong password, vary username, diff responses -> find valid username
   stage 2: fixed valid username, vary password, diff responses -> find valid password
   
+Lab 1 — Username enumeration via different responses — DONE
+method: sent login request to Intruder, ran candidate username list with fixed
+        wrong password
+finding: all response lengths equal except one outlier -> confirmed valid username
+username found: access
+repeated same technique: fixed username=access, varied password via Intruder
+password found: mobilemail
+why it works: app returns a differently-sized response for valid vs invalid
+              username, even though the displayed error text may look the same
+fix: return identical response (length, status, timing) regardless of whether
+     username or password was wrong  
   
+Lab 2 — 2FA simple bypass — DONE
+credentials: wiener:peter (own account) / target: carlos's account
+mechanism: two chained bugs, not one
+  bug 1 - session pre-authenticates after password check, BEFORE 2FA verification
+          (2FA treated as an extra page, not an authorization gate)
+  bug 2 - /my-account trusts client-supplied id param with no ownership check
+method: intercepted 2FA step request, changed /login2 -> /my-account?id=carlos
+        skipped 2FA code entirely, landed directly on target account page
+why it exists: server never re-validates that 2FA was completed before granting
+               access; server never validates id param against session owner
+fix: server-side session state must require 2FA-complete flag before allowing
+     /my-account access; id must be derived from session, not trusted from request
+attacker impact: full account takeover without ever knowing the 2FA code
+note: this is a broken access control bug wearing a 2FA costume — preview of
+      the IDOR module coming up after Auth
+      
+Lab 3 — Password reset broken logic — DONE
+credentials: wiener:peter (used to generate a legitimate token)
+target: carlos's account
+
+mechanism: token and username are meant to be a matched pair (token issued
+           FOR a specific user), but server validates them independently
+  - triggered password reset for own account (wiener) -> got valid
+    temp-forgot-password-token in the reset link
+  - intercepted the POST that submits the new password
+  - kept wiener's valid token, changed username field to carlos
+  - server accepted it: checked "is token valid" but never checked
+    "does this token belong to THIS username"
+
+method: forgot-password flow as wiener -> intercept POST -> swap username
+        param to carlos, token unchanged -> password set for carlos's account
+
+why it exists: token validity and user identity binding are checked as two
+               separate, unrelated conditions instead of one combined check
+
+fix: server must verify token was issued FOR the exact username in the
+     request — reject if token/username pair don't match, not just if
+     token is expired/malformed
+
+attacker impact: full account takeover of ANY user by triggering your own
+                 reset flow and swapping the username field
+
+pattern match: same root cause as Lab 2 — a value meant to be bound to a
+               specific user isn't actually validated against that user
+               server-side        
   
 ======================================================
 THINGS I STILL NEED TO PRACTICE

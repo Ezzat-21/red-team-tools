@@ -86,6 +86,12 @@ what i found on Metasploitable:
 why it matters: if a root cron job runs a script i can write to
                i edit that script and it executes as root — instant privesc
 
+Cron job privesc check: [TAUGHT]
+what i learned: check /etc/cron.d/, /etc/crontab, AND /var/spool/cron/crontabs/
+                privesc requires: root-owned cron job -> calls a WORLD-WRITABLE script/binary
+                checked Metasploitable — both cron.d jobs call root-owned targets, not exploitable
+why it matters: "not vulnerable" is still a valid, documented finding — don't force one
+
 Disable history: [DONE]
 unset HISTFILE && export HISTSIZE=0
 what i learned: unset HISTFILE stops bash writing history to disk
@@ -257,7 +263,14 @@ what i learned: seq = "my data starts here", ack = "next byte i expect from you"
 why it matters: historical attack class (Mitnick 1994) relied on predictable ISNs
                 modern OS randomization defeats this — still relevant on legacy/embedded stacks
 verified by: captured handshake in Wireshark between Kali and Metasploitable
-               
+
+Application-layer banners: [DONE]
+what i learned: FTP, SSH, SMTP send a banner immediately after TCP handshake,
+                before client sends anything — protocol-defined, not misconfig
+                confirmed via nc: port 21 vsFTPd 2.3.4, port 22 OpenSSH 4.7p1,
+                port 25 Postfix ESMTP
+why it matters: exact version leak with zero auth — this is how banner grabbing
+                in recon.py identifies the vsftpd backdoor target               
 
 Script scan: [DONE]
 nmap -sC TARGET_IP

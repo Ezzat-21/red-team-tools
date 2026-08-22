@@ -1448,7 +1448,27 @@ attacker impact: full account takeover of ANY user by triggering your own
 pattern match: same root cause as Lab 2 — a value meant to be bound to a
                specific user isn't actually validated against that user
                server-side        
-  
+ 
+Lab 4 — Username enumeration via subtly different responses — DONE
+method: sent login request to Intruder, ran candidate username list with
+        fixed wrong password
+finding: response length varied, status code same for all
+         rendered a response and found the message: "Invalid username or password."
+         found that valid usernames instead return: "Invalid password."
+         these two messages are what create the length difference
+note: wanted to filter directly on this message text, but Grep-Match/filter
+      by response content is a Pro feature — identified the valid username
+      by manually checking response text instead
+repeated same approach for password stage once username was confirmed
+
+why it exists: server reveals username validity through message wording
+               ("Invalid password." only shown when username exists)
+fix: return the exact same message text regardless of whether username
+     or password was the incorrect field
+pattern match: same category as Lab 1 — response diffing to detect username
+               validity — Lab 4 requires reading actual message text instead
+               of one obvious length outlier
+                 
 ======================================================
 THINGS I STILL NEED TO PRACTICE
 ======================================================

@@ -1483,7 +1483,103 @@ fix: return the exact same message text regardless of whether username
 pattern match: same category as Lab 1 — response diffing to detect username
                validity — Lab 4 requires reading actual message text instead
                of one obvious length outlier
-                 
+          
+Lab 5 — Username enumeration via response timing — DONE
+credentials: wiener:peter (given) / target found: austin
+
+mechanism 1 - IP rate-limit bypass via X-Forwarded-For:
+  app trusts client-supplied X-Forwarded-For header as the real client IP
+  for rate-limiting decisions — attacker controls this header directly
+  used Burp Intruder PITCHFORK attack: paired username list with a list of
+  fake IPs (one unique IP per attempt) so rate limit never accumulates
+  against any single tracked value
+  why pitchfork not cluster bomb: pitchfork pairs payload sets 1-to-1
+  (username #1 with IP #1, username #2 with IP #2) — one clean IP per
+  username attempt, testing each username exactly once
+
+mechanism 2 - timing side-channel:
+  server does MORE WORK (real password hash comparison) only when the
+  username is valid; invalid usernames short-circuit instantly with no
+  hash check — this time difference is measurable across many requests
+  finding: "austin" consistently slower response time than all other
+  candidates -> confirmed valid username
+  repeated same pitchfork technique for password stage -> found via
+  status code 302 (redirect = success) vs 200 (failure) for all others
+  password found: 1234567890
+
+why it exists: (1) rate limiting keyed on a client-controlled header
+               (2) authentication logic does variable-time work depending
+               on whether username exists
+fix: (1) never trust X-Forwarded-For for security decisions — use the
+     actual TCP connection source IP, or only trust X-Forwarded-For from
+     a verified/trusted proxy
+     (2) perform constant-time operations regardless of username validity
+     (e.g. always run a dummy hash comparison even for nonexistent users)
+attacker impact: full username enumeration + credential brute force despite
+                 rate limiting being in place
+pattern match: rate-limit bypass = trust boundary violation (same family as
+               Lab 3's token/username binding failure — app trusts a
+               client-supplied value it should verify or ignore)    
+
+Lab 6 — Broken brute-force protection, IP block — DONE
+credentials: wiener:peter (valid, own account) / target: carlos
+
+mechanism: logic flaw in lockout counter RESET, not the lockout itself
+  X-Forwarded-For spoofing tested first — FAILED — indicates this app's
+  lockout is NOT tracked by IP (different mechanism than Lab 5)
+  actual flaw: a SUCCESSFUL login resets the failed-attempt counter,
+  but the reset is not scoped to the account being attacked — any
+  successful login anywhere resets the shared/global counter
+
+method: interleave a real valid login between failed guesses to reset
+        the counter before hitting the lockout threshold
+  carlos:guess1  (fail 1)
+  carlos:guess2  (fail 2)
+  wiener:peter   (success -> resets counter to 0)
+  carlos:guess3  (fail 1 again, never reaches lockout)
+  repeat pattern via Intruder until carlos's password found
+password found: maggie
+
+why it exists: counter reset condition checks "was ANY login successful"
+               instead of "was A LOGIN FOR THIS SPECIFIC ACCOUNT successful"
+fix: scope the failed-attempt counter reset to the same account -- a
+     successful login for account X must never reset the fail-count for
+     account Y
+
+pattern match: third distinct auth bug category —
+  Labs 1/4 = response differencing (what server reveals)
+  Lab 5    = trust boundary violation (what server trusts, e.g. X-Forwarded-For)
+  Lab 6    = stateful logic flaw (order/pattern of requests exploiting reset condition)
+  
+Lab 7 — Username enumeration via account lock — DONE
+
+mechanism, stage 1 - username enumeration via lockout message:
+  hit each candidate username 5x with a wrong password
+  invalid usernames -> always "Invalid username or password."
+  valid usernames -> after 5 attempts, message changes to "you're blocked"
+  (no real account behind invalid usernames, so nothing ever locks)
+
+mechanism, stage 2 - lockout does not block the CORRECT password:
+  once account shows "blocked," further WRONG passwords are correctly
+  rejected as blocked — the lock is real and functions for bad guesses
+  BUT sending the CORRECT password still logs you in, even while the
+  account is in a locked state
+  brute-forced password against the locked account via Sniper attack,
+  correct password succeeded and bypassed the lock
+
+why it exists: the lockout check only triggers on/enforces against wrong
+               passwords — the correct-password path never checks lock
+               state at all, so a right answer skips the lock entirely
+fix: lock state must be checked BEFORE any password comparison happens —
+     reject the login attempt outright once locked, regardless of whether
+     the submitted password is right or wrong
+
+pattern match: NOT the same bug as Lab 6
+  Lab 6 = counter reset scoped incorrectly (wrong condition clears it)
+  Lab 7 = lock enforcement is asymmetric — blocks wrong passwords,
+          but correct password bypasses the lock check entirely
+          
+                                        
 ======================================================
 THINGS I STILL NEED TO PRACTICE
 ======================================================

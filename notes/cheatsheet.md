@@ -39,6 +39,16 @@ find / -perm -002 -type d 2>/dev/null | grep -v /proc
 what i learned: /proc is a virtual filesystem — always shows writable, ignore it
 why it matters: real writable files/dirs are actual privesc paths
 
+World-writable TWiki application data: [DONE]
+command: find / -perm -o+w -type f -not -path "/proc/*" 2>/dev/null
+finding: entire /var/www/twiki/data/ and /var/www/twiki/pub/ trees are
+         world-writable — live web app, reachable over HTTP
+why it matters: any user who can reach the web server can modify wiki
+                content/attachments directly — real attack surface, not
+                just a filesystem curiosity
+Stage 3 target: TWiki world-writable content — potential RCE via crafted
+                attachment/topic, add alongside WebDAV upload target
+
 Find files containing password: [DONE]
 grep -r "password" /etc/ 2>/dev/null
 what i learned: searches inside every file in /etc/ for the word password
@@ -410,6 +420,11 @@ FTP: all traffic plaintext — Wireshark shows everything
 conclusion: SSH replaced Telnet and FTP precisely because of this
             any protocol without encryption is dangerous on shared networks
 
+401 Unauthorized vs 403 Forbidden: [DONE]
+401 = "who are you?" — no/invalid authentication provided
+403 = "I know who you are, but you're not allowed" — authenticated but
+      lacking permission
+      
 ======================================================
 SSH
 ======================================================

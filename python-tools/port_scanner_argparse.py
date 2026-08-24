@@ -2,11 +2,14 @@ import socket
 import argparse
 import datetime
 
+TIMESTAMP = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+
 parser = argparse.ArgumentParser(description='Port Scanner')
 parser.add_argument("-t", "--target", required=True)
 parser.add_argument("-s", "--start", type=int, default=1)
 parser.add_argument("-e", "--end", type=int, default=1025)
 parser.add_argument("-T", "--timeout", type=float, default=0.1)
+parser.add_argument("-o", "--output",default=None)
 args = parser.parse_args()
 
 services = {
@@ -17,13 +20,12 @@ services = {
     2049: 'NFS', 3306: 'MySQL', 5432: 'PostgreSQL',
     5900: 'VNC', 6667: 'IRC', 8180: 'Tomcat'
 }
-
-TIMESTAMP = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-filename = f"/home/kali/red-team-tools/python-tools/scan_{args.target}_{TIMESTAMP}.txt"
+if args.output is None:
+    args.output = f"/home/kali/red-team-tools/python-tools/scan_{args.target}_{TIMESTAMP}.txt"
 
 print(f"Scanning {args.target} ports {args.start}-{args.end}...")
 
-with open(filename, "w") as f:
+with open(args.output, "w") as f:
     f.write(f"Scan of {args.target} — {TIMESTAMP}\n\n")
     for port in range(args.start, args.end + 1):
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -37,4 +39,4 @@ with open(filename, "w") as f:
         s.close()
     f.write("\nScan completed.\n")
 
-print(f"Results saved to {filename}")
+print(f"Results saved to {args.output}")

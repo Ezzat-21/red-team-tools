@@ -157,6 +157,11 @@ Full OPSEC routine — do this every session: [DONE]
 8. history — should return nothing
 9. exit
 
+Private SSH key discovery: [DONE]
+command: find / -name "id_rsa" -o -name "id_dsa" 2>/dev/null
+finding: /home/msfadmin/.ssh/id_rsa exists
+follow-up: check ls -la permissions — only exploitable if world/group readable
+
 ======================================================
 STAGE 3 PRIVESC TARGETS — METASPLOITABLE SUID BINARIES
 ======================================================
@@ -425,6 +430,18 @@ conclusion: SSH replaced Telnet and FTP precisely because of this
 403 = "I know who you are, but you're not allowed" — authenticated but
       lacking permission
       
+nmap -sV -sC traffic capture in Wireshark: [DONE]
+filter used: ip.addr == 192.168.56.104 && (ftp || ssh || smtp || http)
+what i learned: broad ip.addr filter shows mostly TCP handshake/RST noise —
+                filtering by protocol name shows only packets Wireshark has
+                identified at the application layer
+                confirmed nmap's version-detection probes actually triggering
+                real protocol responses (FTP working directory line, SMTP/SSH
+                banners, HTTP GET requests) during an active -sV -sC scan
+why it matters: proves version detection isn't just reading a static banner
+                once — nmap is having a real (partial) conversation with
+                each service to fingerprint it
+                      
 ======================================================
 SSH
 ======================================================

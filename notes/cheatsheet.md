@@ -1595,7 +1595,89 @@ pattern match: NOT the same bug as Lab 6
   Lab 6 = counter reset scoped incorrectly (wrong condition clears it)
   Lab 7 = lock enforcement is asymmetric — blocks wrong passwords,
           but correct password bypasses the lock check entirely
-          
+    
+Lab 8 — 2FA broken logic — WATCHED (not completed hands-on, time constraint on 10k requests)
+credentials: wiener:peter / target: carlos
+
+mechanism: brute-force protection is tied to a cookie that isn't required
+  GET /login2 sends: Cookie: verify=wiener; session=<session_id>
+  verify=<username> tells server WHOSE 2fa code to check — attacker controlled,
+  no binding to prove it matches the actual logged-in session
+  session cookie is what the server uses to COUNT failed attempts and lock out
+  removing the session cookie entirely: server still processes the request,
+  but has nothing to attach a failed-attempt counter to -> NO rate limit at all
+
+exploit path:
+  1. change verify=wiener -> verify=carlos
+  2. strip session cookie from the request completely
+  3. brute-force mfa-code 0000-9999 via Intruder (no lockout since no session)
+  4. correct code returns a response containing a valid session cookie for carlos
+  5. swap that cookie into browser -> logged in as carlos
+
+why it exists: anti-brute-force protection is optional infrastructure (tied to
+               session) rather than mandatory server-side enforcement — an
+               attacker can simply opt out of being rate-limited
+fix: rate-limit/lockout must be enforced independent of whether a session
+     cookie is present — track by IP+account or require session unconditionally
+     verify cookie must be cryptographically bound to the authenticated session,
+     not just an arbitrary trusted parameter
+
+tooling note: Community Intruder is single-threaded/rate-limited — 10,000
+              requests (full 4-digit space) is impractically slow
+              Turbo Intruder (free BApp Store extension) is built exactly for
+              this — high-volume brute force via concurrent Python-driven
+              requests — this is PortSwigger's own recommended tool for this lab
+
+pattern match: 4th distinct auth bug category —
+  Labs 1/4 = response differencing
+  Lab 5    = trust boundary violation (X-Forwarded-For)
+  Lab 6    = stateful logic flaw (counter reset scope)
+  Lab 7    = asymmetric enforcement (correct answer bypasses lock)
+  Lab 8    = security control is opt-in, not enforced (missing session = no protection)
+todo: install Turbo Intruder, revisit this lab hands-on when time allows
+  
+Lab 9 — Brute-forcing a stay-logged-in cookie — DONE
+credentials: wiener:peter / target: carlos
+
+mechanism, discovery phase:
+  logged in as wiener, captured Set-Cookie: stay-logged-in=<base64 string>
+  base64-decoded it -> wiener:51dc30ddc473d43a6011e9ebba6ca770
+  looked up the hash on crackstation -> confirmed it's MD5 of "peter"
+  reverse-engineered format: stay-logged-in = base64("username:MD5(password)")
+
+mechanism, exploit phase:
+  NOT brute-forcing the raw cookie string directly (infeasible keyspace)
+  instead: CONSTRUCT a candidate cookie per wordlist password —
+    MD5-hash each candidate password, format as "carlos:<hash>", base64-encode
+  send each constructed cookie as the stay-logged-in value via Intruder
+  correct one returns 200 / logs you in as carlos
+
+second bug found: stay-logged-in cookie alone creates a valid session with
+  NO prior session required at all (empty session cookie still worked) —
+  same "protection requires a session that isn't mandatory" pattern as Lab 8,
+  but here it bypasses the entire login step, not just a lockout counter
+
+carlos's password found: 1qaz2wsx
+
+why it exists: server trusts a client-suppliable value (username:hash(password))
+               as sufficient identity proof, with no server-side secret
+               (no salt, no HMAC/signing key) making it unforgeable —
+               anyone who can compute MD5 can construct a valid-looking cookie
+               for ANY username, given the right password
+fix: never derive a persistent-auth token from a reversible/guessable
+     transform of the password alone — sign the token server-side with a
+     secret key (HMAC), and/or use a random unguessable token stored
+     server-side (session-token style) instead of an encoded credential
+
+pattern match: 5th distinct auth bug category —
+  Labs 1/4 = response differencing
+  Lab 5    = trust boundary violation (X-Forwarded-For)
+  Lab 6    = stateful logic flaw (counter reset scope)
+  Lab 7    = asymmetric enforcement (correct answer bypasses lock)
+  Lab 8    = security control is opt-in (missing session = no protection)
+  Lab 9    = forgeable token — known algorithm + no server-side secret
+             lets attacker CONSTRUCT valid credentials instead of guessing them
+             
                                         
 ======================================================
 THINGS I STILL NEED TO PRACTICE

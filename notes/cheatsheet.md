@@ -441,6 +441,17 @@ what i learned: broad ip.addr filter shows mostly TCP handshake/RST noise —
 why it matters: proves version detection isn't just reading a static banner
                 once — nmap is having a real (partial) conversation with
                 each service to fingerprint it
+nmap --script-help usage: [DONE]
+command: nmap --script-help <scriptname>
+what i learned: reads a script's description/purpose without running a scan
+                used on smb-security-mode (already fired during my own -sC scan)
+finding connected: my scan showed "message_signing: disabled (dangerous, but default)"
+                   script-help explained why: without signing, attacker in MITM
+                   position can tamper with/relay SMB traffic undetected
+                   this is the exact mechanism behind MS08-068 SMB relay
+why it matters: turns a cryptic -sC output line into actual understanding of
+                exploitability, without needing an external writeup search
+Stage 3 target: SMB relay/MITM — message signing disabled on Metasploitable
                       
 ======================================================
 SSH

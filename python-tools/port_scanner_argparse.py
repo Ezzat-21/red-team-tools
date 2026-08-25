@@ -20,6 +20,13 @@ services = {
     2049: 'NFS', 3306: 'MySQL', 5432: 'PostgreSQL',
     5900: 'VNC', 6667: 'IRC', 8180: 'Tomcat'
 }
+
+try:
+    socket.inet_aton(args.target)
+except socket.error:
+    print("Please enter a valid IP Address")
+    exit(1)
+
 if args.output is None:
     args.output = f"/home/kali/red-team-tools/python-tools/scan_{args.target}_{TIMESTAMP}.txt"
 

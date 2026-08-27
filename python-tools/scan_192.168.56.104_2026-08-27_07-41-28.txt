@@ -1,0 +1,10 @@
+Scan of 192.168.56.104 — 2026-08-27_07-41-28
+
+Port 20 (unknown) — CLOSED
+Port 21 (FTP) — OPEN
+Port 22 (SSH) — OPEN
+Port 23 (Telnet) — OPEN
+Port 24 (unknown) — CLOSED
+Port 25 (SMTP) — OPEN
+
+Scan completed.

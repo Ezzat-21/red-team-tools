@@ -452,7 +452,14 @@ finding connected: my scan showed "message_signing: disabled (dangerous, but def
 why it matters: turns a cryptic -sC output line into actual understanding of
                 exploitability, without needing an external writeup search
 Stage 3 target: SMB relay/MITM — message signing disabled on Metasploitable
-                      
+
+UnrealIRCd targeted scan: [DONE]
+command: nmap -sV -p 6667 192.168.56.104
+result: confirmed IRC/UnrealIRCd on port 6667, host irc.Metasploitable.LAN
+next step for Stage 3: nmap version alone doesn't confirm exploitable version —
+                       banner grab via nc for exact version string before
+                       attempting backdoor trigger (AB; + shell command over IRC)
+                                             
 ======================================================
 SSH
 ======================================================

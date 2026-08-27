@@ -1729,7 +1729,40 @@ pattern match: real-world lesson — vulnerabilities chain. XSS alone gives you
                crackable into a real password — full account takeover
                from two only-moderately-severe bugs individually
                             
-                                        
+Lab 11 — Password reset poisoning via middleware — DONE
+credentials: wiener:peter / target: carlos
+
+mechanism: app trusts X-Forwarded-Host header when constructing the domain
+  for password reset links, instead of only trusting the real Host header
+  or a hardcoded app domain
+
+exploit path:
+  1. POST /forgot-password for username=carlos
+  2. added header: X-Forwarded-Host: <attacker exploit-server domain>
+  3. server generated a REAL valid reset token for carlos's account, but
+     built the reset link using the attacker's domain
+  4. token became observable via attacker's exploit server access logs
+     (app attempted to "deliver" the poisoned link, request logged there)
+  5. took the leaked temp-forgot-password-token, submitted it directly:
+     POST /forgot-password?temp-forgot-password-token=<token>
+     body: new-password-1=carlos&new-password-2=carlos
+  6. logged in as carlos:carlos
+
+why it exists: password reset link generation trusts a client-controlled
+               header (X-Forwarded-Host) to build a domain, instead of
+               using a fixed, server-controlled base URL
+fix: never construct security-sensitive URLs (reset links, email links)
+     from client-supplied headers — use a hardcoded/whitelisted domain
+     configured server-side
+
+pattern match: same root cause family as Lab 5 (X-Forwarded-For rate-limit
+               bypass) — X-Forwarded-* headers are client-controlled and
+               meant for legitimate reverse-proxy setups, but apps often
+               trust them without verifying the request actually came
+               through a trusted proxy
+               general rule: any X-Forwarded-* header is worth testing
+               for trust issues on sight
+                                                       
 ======================================================
 THINGS I STILL NEED TO PRACTICE
 ======================================================

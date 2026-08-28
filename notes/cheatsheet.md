@@ -1762,7 +1762,42 @@ pattern match: same root cause family as Lab 5 (X-Forwarded-For rate-limit
                through a trusted proxy
                general rule: any X-Forwarded-* header is worth testing
                for trust issues on sight
-                                                       
+  
+Lab 12 — Password brute-force via password change — DONE
+credentials: wiener:peter / target: carlos
+
+mechanism: change-password endpoint validates current-password against
+  whatever username is submitted in the request body — never checks that
+  username matches the actual authenticated session (wiener)
+
+discovery:
+  username=wiener&current-password=peter (correct)   -> "New passwords do not match"
+  username=wiener&current-password=wrong (incorrect) -> "Current password is incorrect"
+  these two distinct messages = working oracle for "is this password correct
+  for this username" — same response-differencing family as Lab 1
+
+exploit: swap username to carlos while keeping the message-differencing
+  attack the same:
+  username=carlos&current-password=<guess>&new-password-1=x&new-password-2=x
+  sent to Intruder with candidate password list
+  "New passwords do not match" response = correct current-password guess
+  found: carlos:mustang
+
+why it exists: same root pattern as Labs 2 and 3 — server trusts a
+               client-supplied username field instead of deriving identity
+               from the authenticated session; here it's on a WRITE
+               endpoint, not just a read/access endpoint
+fix: change-password must operate ONLY on the account tied to the current
+     session — ignore/reject any client-supplied username field entirely
+
+pattern match: 6th instance of the identity-binding failure family —
+  Lab 2  = session pre-auth + trusted id param (2FA bypass)
+  Lab 3  = token not bound to username (password reset)
+  Lab 12 = current-password check not bound to authenticated session
+  broader lesson: this bug class isn't limited to "read" endpoints (IDOR-style)
+  — it applies to ANY endpoint that takes a username/id param instead of
+  deriving identity from session, including write/mutation endpoints
+                                                         
 ======================================================
 THINGS I STILL NEED TO PRACTICE
 ======================================================

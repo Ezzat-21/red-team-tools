@@ -65,11 +65,26 @@ Ahmed Ezzat — Red Team Roadmap
 - argparse port scanner built with service lookup and file output
 - Warm-up tasks completed through L22, N22, P22
 
+## August 2026 — Week 7-8
+
+### Completed
+- Authentication vulnerabilities — 14/14 PortSwigger labs
+- Response differencing (length, message text, timing) for username enumeration
+- Trust boundary violations: X-Forwarded-For rate-limit bypass, X-Forwarded-Host password reset poisoning
+- Stateful logic flaws: brute-force lockout counter reset abuse, asymmetric lock enforcement
+- Forgeable tokens: stay-logged-in cookie format reverse-engineered (base64 + MD5), cracked via crackstation
+- Chained real exploit: stored XSS used to exfiltrate a victim's cookie, then cracked offline for full account takeover
+- JSON parameter pollution: array injection in password field bypasses request-based brute-force limiting
+- Lab 8 and Lab 14 documented as watched — require Turbo Intruder / Burp macros + session handling rules for full hands-on completion, revisiting later
+- Identified 7 distinct authentication vulnerability root-cause categories across all 14 labs
+- Warm-up tasks completed through L29, N29, P29 (rotation now includes periodic SQLi/XSS recall drills)
+- Fixed git object corruption incident — recovered cleanly via fresh clone from GitHub, zero data loss
+- port_scanner_argparse.py: added --output flag, --verbose flag, IP validation via socket.inet_aton
+
 ### Currently Working On
-- XSS Labs 28 and 30 remaining
-- Then: Authentication vulnerabilities on PortSwigger
+- Repo cleanup and documentation pass — removed superseded warmup drafts, junk scan-output files, fixed dead file references in README
 
 ### Next
-- Complete XSS Labs 28 and 30
-- Start Authentication vulnerability series
-- Move to Stage 3 after completing Stage 2
+- Start Access Control / IDOR vulnerabilities on PortSwigger
+- Then: SSRF → CSRF
+- Move to Stage 3 (Exploitation Fundamentals) after completing Stage 2

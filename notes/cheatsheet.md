@@ -1797,7 +1797,92 @@ pattern match: 6th instance of the identity-binding failure family —
   broader lesson: this bug class isn't limited to "read" endpoints (IDOR-style)
   — it applies to ANY endpoint that takes a username/id param instead of
   deriving identity from session, including write/mutation endpoints
-                                                         
+  
+Lab 13 — Broken brute-force protection, multiple credentials per request — DONE
+target: carlos, no known password given
+
+mechanism: JSON parameter type confusion / array injection
+  normal request: {"username":"carlos","password":"guess"}
+  backend JSON parser accepts an ARRAY for password field instead of
+  rejecting non-string types outright:
+  {"username":"carlos","password":["guess1","guess2",...,"correct_pw"]}
+  auth logic iterates the array, checks EACH value against stored hash,
+  logs in successfully if ANY element matches
+
+why brute-force protection fails: rate limiting/lockout counts REQUESTS,
+  not individual password comparisons — one request containing the ENTIRE
+  candidate wordlist as an array = one counter increment, unlimited guesses
+  hidden inside a single request
+
+method: sent one POST /login with password as a JSON array of the full
+  candidate password list -> got 302 Found + valid session cookie directly
+  (no need for Intruder at all — one request solved it)
+  copied session cookie value into browser devtools (Application > Cookies)
+  -> replaced session value -> loaded /my-account -> logged in as carlos
+
+why it exists: (1) JSON parser too permissive — accepts array where a single
+               string is expected (2) auth logic naively iterates instead
+               of rejecting non-string input (3) brute-force counter tracks
+               requests, not comparisons — trivially bypassed by batching
+fix: strictly validate expected type for each JSON field (reject non-string
+     password), and rate-limit based on number of credential comparisons
+     attempted, not just number of HTTP requests received
+
+pattern match: 7th and NEWEST distinct category — different from all prior
+  labs because it exploits INPUT PARSING/type handling, not authentication
+  logic itself. Labs 1-12 all assumed correct type handling and attacked
+  decision logic; this lab shows the parser accepting a wrong type at all
+  is itself the vulnerability, independent of how sound the auth logic is
+  otherwise
+  general technique to remember: try sending arrays/objects in place of
+  expected scalar values on any JSON API — a real, named technique class
+  (HTTP parameter pollution equivalent for JSON APIs)
+
+Lab 14 — 2FA bypass using a brute-force attack — WATCHED (Expert difficulty, Community-edition time constraint)
+credentials: carlos:montoya (given)
+
+mechanism: 2FA code (0000-9999) has no rate limiting or lockout on
+  guesses, BUT entering 2 wrong codes forces a full re-login (username+
+  password) before you can try again — code itself may remain valid
+  across multiple login+guess cycles until actually used correctly
+
+why this ISN'T simply "install Pro": macros/session handling rules exist
+  in Burp Community Edition — the real Pro-vs-Community gap is Intruder's
+  SPEED (Community is single-threaded/rate-limited), not the macro
+  feature being locked away. Turbo Intruder (free BApp) is the official
+  alternative for people without Pro's faster Intruder
+
+correct approach (per official PortSwigger + community writeups):
+  1. record a MACRO of the full login sequence: POST /login (creds) ->
+     GET /login2 (fetch fresh CSRF token) -> POST /login2 (code guess)
+  2. Settings/Project options -> Sessions -> Session Handling Rules -> Add
+     -> Scope tab -> "Include all URLs"
+  3. Details tab -> Rule Actions -> Add -> "Run a macro"
+  4. attach this session handling rule to the Intruder attack targeting
+     the mfa-code parameter on POST /login2
+  5. macro auto re-authenticates (fresh session + CSRF token) every time
+     Intruder's request would otherwise fail from an invalidated session
+  6. may need to re-run the attack — the valid code can change mid-attack,
+     landing on a value your current run already skipped past
+
+alternative for Community users without patience for slow Intruder:
+  custom Python script (asyncio/aiohttp) replicating the same login ->
+  login2 -> extract CSRF/session -> guess cycle, run concurrently
+
+why it exists: (1) 2FA code has no attempt-count limiting at all —
+               resetting the SESSION (via re-login) is treated as
+               sufficient protection, but it isn't, since the underlying
+               code value can persist across sessions
+fix: rate-limit 2FA code attempts per ACCOUNT (not per session), invalidate
+     and regenerate the code on every new login attempt, and lock the
+     account after a small number of total incorrect codes regardless of
+     how many times the user re-authenticates
+
+todo: revisit hands-on once comfortable building Burp macros + session
+      handling rules, or when time allows for the slow Community Intruder run              
+      
+      
+                                                   
 ======================================================
 THINGS I STILL NEED TO PRACTICE
 ======================================================

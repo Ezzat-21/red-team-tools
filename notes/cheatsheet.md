@@ -1882,6 +1882,46 @@ todo: revisit hands-on once comfortable building Burp macros + session
       handling rules, or when time allows for the slow Community Intruder run              
       
       
+======================================================
+WEB APP SECURITY — AUTHENTICATION VULNERABILITIES
+======================================================      
+  
+Authentication vs Session Management vs Access Control:
+  Authentication = confirms WHO the user is (identity)
+  Session management = verifies that identity across subsequent requests
+  Access control = determines WHAT that identified user is allowed to do
+
+Three types of access control:
+  VERTICAL - privilege level based (user -> admin functionality)
+             bug = "I shouldn't be able to do this AT ALL"
+  HORIZONTAL - same privilege level, different user's resource (user -> user)
+               bug = "I can do this action, just not on someone else's data"
+               THIS IS IDOR specifically
+  CONTEXT-DEPENDENT - based on application STATE/SEQUENCE, not privilege or
+                       ownership (e.g., skipping steps in a multi-stage process)
+
+Broken access control = users can act outside their intended permissions
+
+Root causes:
+  1. unprotected functionality - sensitive endpoint has NO access check at all,
+     just relies on the URL being unpublished ("security through obscurity")
+  2. identifier-based access control trusting client input - server uses an
+     ID from the REQUEST (?id=123) to fetch a resource without verifying
+     that ID belongs to the requesting user = IDOR
+  3. platform misconfiguration - access control only enforced client-side
+     (JS), never re-checked server-side; or a URL-matching rule an attacker
+     can bypass (path tricks, trailing slash, case changes)
+  4. multi-step process flaws - server assumes steps happen in order,
+     doesn't verify previous steps were actually completed
+
+testing methodology: COMPARISON across identity, not across input values
+  1. access a resource/action as User A (or admin), note exact request + response
+  2. log out, log in as User B (different user, lower privilege, or no login)
+  3. replay the EXACT SAME request
+  4. same result you shouldn't get = broken access control confirmed
+  same core technique family as Authentication response-differencing, but
+  comparing across USER IDENTITY instead of across INPUT VALUES       
+       
                                                    
 ======================================================
 THINGS I STILL NEED TO PRACTICE

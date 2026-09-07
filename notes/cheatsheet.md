@@ -1921,7 +1921,68 @@ testing methodology: COMPARISON across identity, not across input values
   4. same result you shouldn't get = broken access control confirmed
   same core technique family as Authentication response-differencing, but
   comparing across USER IDENTITY instead of across INPUT VALUES       
-       
+ 
+Lab 1 — Unprotected admin functionality — DONE
+method: manually guessed common admin path names (admin, administrator,
+        admin-panel, administrator-panel) until one worked with zero
+        login/access check
+why it exists: sensitive functionality has NO access control check at all —
+               relies purely on the URL not being publicly known/linked
+real-world approach: manual guessing simulates what a content discovery
+                     tool (ffuf, gobuster, Burp Content Discovery) does
+                     automatically with a wordlist — not a "clever payload"
+                     category like SQLi/XSS, this is a CHECKING discipline
+fix: enforce a real server-side access control check on every sensitive
+     endpoint — never rely on an unlinked/unguessable URL as protection
+
+Lab 2 — Unprotected admin functionality with unpredictable URL — DONE
+method: same root bug as Lab 1 (no real access check), but URL is meant to
+        be unguessable ("security through obscurity")
+        found the actual path by viewing page source: disclosed in a
+        JS attribute -- adminPanelTag.setAttribute('href', '/admin-xxxx')
+why it exists: developer assumed obscurity = security; the location still
+               gets exposed somewhere in the app's own client-side code
+fix: same as Lab 1 — obscurity is not a substitute for a real access check
+
+Lab 3 — User role controlled by request parameter (cookie) — DONE
+credentials: wiener:peter
+mechanism: server sets Admin=false cookie representing a security decision,
+           then TRUSTS that same cookie's value on future requests with no
+           server-side re-verification
+method: intercepted login response, saw Set-Cookie: Admin=false
+        changed cookie value to Admin=true via browser devtools
+        refreshed -> admin panel accessible
+why it exists: authorization state stored in a client-controlled cookie
+               with no signing/verification — trivially forgeable
+fix: never store authorization decisions in a plain, unsigned client-side
+     value; verify role/permission server-side on every request using
+     session-bound data, not client-supplied cookies
+
+Lab 4 — User role can be modified in user profile — DONE
+credentials: wiener:peter
+mechanism: same root cause as Lab 3 (client-controlled authorization value),
+           but the field (roleid) lives in a request BODY on an unrelated
+           endpoint (change-email), not a cookie
+discovery method: response to change-email request ECHOED BACK a "roleid"
+                  field that was never sent in the request — strong signal
+                  the server will also ACCEPT that field as input
+method: sent POST /my-account/change-email via Repeater, added "roleid": 2
+        to the request body -> 302 Found -> followed redirect -> 200 OK
+        -> admin panel now accessible -> deleted carlos
+why it exists: server accepts and trusts a client-supplied privilege field
+               on an endpoint that was never meant to change roles
+fix: never accept role/permission fields from client input on ANY endpoint;
+     role changes must go through a separate, properly-authorized admin
+     action, never be settable via a general profile-update endpoint
+general lesson: if a response shows a field you never sent, try sending
+                it back yourself — strong signal the server may honor it
+
+pattern match across Labs 1-4:
+  Labs 1-2 = NO access control check exists at all (obscurity only)
+  Labs 3-4 = access control EXISTS, but the decision is based on a value
+             the CLIENT controls (cookie or request body field)
+  core question for every future lab in this module: "is there a check?"
+  vs "is the check trustworthy?"       
                                                    
 ======================================================
 THINGS I STILL NEED TO PRACTICE

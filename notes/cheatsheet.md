@@ -1983,7 +1983,97 @@ pattern match across Labs 1-4:
              the CLIENT controls (cookie or request body field)
   core question for every future lab in this module: "is there a check?"
   vs "is the check trustworthy?"       
-                                                   
+ 
+Lab 5 — User ID controlled by request parameter — DONE
+credentials: wiener:peter / target: carlos
+method: GET /my-account?id=wiener -> changed id param to carlos -> 200 OK,
+        API key returned directly in response
+baseline IDOR case: predictable identifier (plain username) in request
+                    parameter, no server-side check that it matches session
+
+Lab 6 — User ID controlled by request parameter, unpredictable IDs — DONE
+credentials: wiener:peter / target: carlos
+mechanism: GUIDs used instead of usernames specifically to prevent Lab 5's
+           attack (can't guess a GUID) — but the defense fails because the
+           SAME GUID is leaked elsewhere in the app
+method: own account uses GUID in id param; found carlos's GUID by viewing
+        his blog post -> GET /blogs?userId=<carlos's GUID> -> reused that
+        GUID in GET /my-account?id=<guid> -> got carlos's API key
+general lesson: "unpredictable" identifiers only help if they never leak
+                anywhere else in the app — always check OTHER features
+                (posts, comments, profile links) for the same ID exposed
+                in a different context
+
+Lab 7 — User ID controlled by parameter, data leakage in redirect — DONE
+credentials: wiener:peter / target: carlos
+mechanism: access control DOES eventually fire (server sends a 302 redirect,
+           implying "you're not allowed here") but the full account page
+           body — including carlos's API key — was already written into
+           the response BEFORE the redirect was issued
+           a browser following the redirect normally would never show this
+           body; viewing the RAW response (Burp/curl) reveals it anyway
+method: GET /my-account?id=carlos -> 302 Found -> read the response BODY
+        directly (not just the redirect target) -> API key was already
+        present in the leaked body content
+why distinct from Lab 5: the check technically ran, it just ran too late —
+                          after sensitive data was already serialized into
+                          the response
+fix: never write sensitive data into a response body before an access
+     control check has fully completed and confirmed authorization
+
+Lab 8 — User ID controlled by request parameter, password disclosure — DONE
+credentials: wiener:peter / target: administrator (chained to delete carlos)
+mechanism: chains TWO separate bugs
+  1. IDOR (same as Lab 5) — id param swappable to any account
+  2. type="password" is VISUAL masking only — actual plaintext value sits
+     directly in the HTML value attribute, fully readable in page source/
+     response regardless of input type — never a real security control
+method: GET /my-account?id=administrator -> masked password field's value
+        attribute contained admin's real plaintext password in the HTML
+        -> logged in as administrator:<leaked password> -> deleted carlos
+why it exists: (1) missing access control on id param (2) developer treated
+               HTML input type="password" as if it were a server-side
+               protection — it only affects rendering, not data exposure
+fix: (1) standard IDOR fix — verify id belongs to session (2) NEVER
+     pre-fill any password field with the real password, masked or not —
+     if a form needs to indicate "password is set," use a placeholder,
+     never the actual value
+
+Lab 9 — Insecure direct object references (chat transcripts) — DONE
+target: carlos
+mechanism: chat transcripts stored as SEQUENTIAL, PREDICTABLE static
+           filenames (1.txt, 2.txt, ...) with no access control on which
+           transcript a user can download — IDOR via guessable resource
+           naming, no id/username PARAMETER involved at all, just a
+           guessable file path pattern
+method: own transcript was /download-transcript/2.txt -> guessed
+        /download-transcript/1.txt -> 200 OK, plaintext transcript
+        contained carlos's actual password (he gave it to a "support
+        agent" to confirm it) -> logged in as carlos:<password from chat>
+why it exists: static, incrementing filenames with zero ownership check —
+               same IDOR root cause as ID parameters, just a different
+               resource-naming pattern (files, not query params)
+separate lesson embedded in the transcript content (not the technical
+  vuln itself): real-world social engineering / bad security hygiene —
+  never share your actual password with ANYONE, including support staff;
+  a legitimate support agent never needs to see your actual password to
+  "confirm" it
+fix: use unpredictable, access-controlled identifiers/paths for ANY
+     resource containing sensitive data — sequential file/ID names are
+     an IDOR risk regardless of whether they appear in a URL parameter
+     or a file path
+
+pattern match across Labs 5-9: same root cause (missing ownership check
+  on a resource identifier) expressed through FIVE different surfaces —
+  URL parameter with predictable value (5), URL parameter with leaked
+  "unpredictable" value (6), data leaked in a redirect body before the
+  check completes (7), IDOR chained with a second unrelated bug for
+  privilege escalation (8), and predictable file paths instead of
+  parameters entirely (9). IDOR is not one specific technique — it's a
+  root cause that can surface anywhere an app uses a client-visible
+  identifier to fetch a resource.
+  
+                                                     
 ======================================================
 THINGS I STILL NEED TO PRACTICE
 ======================================================

@@ -2073,7 +2073,65 @@ pattern match across Labs 5-9: same root cause (missing ownership check
   root cause that can surface anywhere an app uses a client-visible
   identifier to fetch a resource.
   
-                                                     
+Lab 10 — URL-based access control circumvented via X-Original-URL — DONE
+mechanism: front-end proxy only inspects the actual URL PATH of a request
+           to decide what's blocked; back-end framework honors a custom
+           X-Original-URL header as a routing override (legitimate feature
+           for reverse-proxy setups) — two layers make security decisions
+           based on DIFFERENT information about the same request
+method: GET / HTTP/2 with header X-Original-Url: /admin -> front-end sees
+        an allowed path (/), back-end routes to /admin anyway -> 200 OK
+        confirmed admin access, then combined query param + header:
+        GET /?username=carlos HTTP/2, X-Original-Url: /admin/delete
+        -> deleted carlos, front-end never saw "/admin/delete" in the
+        actual request line
+why it exists: trust mismatch between front-end and back-end routing logic
+fix: enforce access control at a single, authoritative layer that sees the
+     TRUE effective path (post-header-processing), not the front-end's
+     naive view of the request line alone
+
+Lab 11 — Method-based access control circumvented — DONE
+mechanism: access control middleware only enforced restrictions for the
+           POST method on /admin-roles — GET requests to the same endpoint
+           reached the same underlying handler logic without the check
+method: POST /admin-roles (blocked for non-admin) -> changed to
+        GET /admin-roles?username=wiener&action=upgrade with own session
+        -> succeeded, self-promoted to admin
+why it exists: access control gate assumed one specific HTTP method would
+               always be used, framework still routes other methods to
+               the same functionality
+fix: enforce access control independent of HTTP method — check must apply
+     to the ENDPOINT/action, not one specific verb used to reach it
+
+Lab 12 — Multi-step process, no access control on one step — DONE
+mechanism: two-step role-change process; access control check exists ONLY
+           on step 1 (the "propose" request) — step 2 (the "confirm"
+           request) assumes step 1 already validated the actor, never
+           independently re-checks privilege itself
+method: step 1 (POST with username=carlos) blocked when tampered with own
+        session -> sent step 2 DIRECTLY instead:
+        POST /admin-roles, action=upgrade&confirmed=true&username=wiener
+        -> 302 Found, self-promoted, step 1 never touched
+why it exists: context-dependent access control assumed a fixed sequence
+               of steps; nothing enforces that step 2 can only be reached
+               after step 1 actually completed
+fix: every step in a multi-step sensitive process must independently
+     verify authorization — never assume prior steps in a sequence were
+     actually followed
+
+Lab 13 — Referer-based access control — DONE
+mechanism: access control decision based on the Referer header claiming
+           the request originated from /admin — Referer is ENTIRELY
+           client-controlled and provable by nothing; a tool can set it
+           to any value regardless of actual navigation history
+method: captured admin's real request/Referer format while logged in as
+        administrator -> swapped session + username to own (wiener),
+        kept Referer: .../admin unchanged -> self-promoted successfully
+why it exists: "claims it came from an admin page" was treated as proof
+               of being an admin — a header value is not an identity check
+fix: never use Referer (or any other client-supplied header) as an
+     authorization mechanism — verify actual session/role server-side
+                                                   
 ======================================================
 THINGS I STILL NEED TO PRACTICE
 ======================================================

@@ -10,8 +10,8 @@ Security tools, notes, writeups and lab reports built during my Red Team learnin
   - SQL Injection — 14/14 PortSwigger labs complete
   - XSS — 27/30 labs complete with structured methodology (28, 30 remaining; 22-23-25-26-29 watched only — Burp Pro or expert level)
   - Authentication — 14/14 PortSwigger labs complete (Lab 8 and Lab 14 documented as watched — Turbo Intruder / Burp macros required for full hands-on completion)
-  - Access Control / IDOR — STARTING NEXT
-  - After Access Control: SSRF → CSRF
+  - Access Control / IDOR — 13/13 PortSwigger labs complete
+  - Currently starting: SSRF → then CSRF
 - Stage 3 — Exploitation Fundamentals — UPCOMING
 - Stage 4 — Active Directory — UPCOMING
 - Stage 5 — OSCP Prep — UPCOMING
@@ -58,8 +58,8 @@ Simulates brute-force login attempts against a target with timestamped logging.
 ## Notes
 
 - `cheatsheet.md` — comprehensive reference covering Linux, Windows, networking, SSH,
-  SQLi (14 labs), XSS (27 labs), Authentication (14 labs), OPSEC routine,
-  credentials found, Python tools, Metasploitable services
+  SQLi (14 labs), XSS (27 labs), Authentication (14 labs), Access Control/IDOR (13 labs),
+  OPSEC routine, credentials found, Python tools, Metasploitable services
 
 ## Writeups
 

@@ -67,24 +67,29 @@ Ahmed Ezzat — Red Team Roadmap
 
 ## August 2026 — Week 7-8
 
+## September 2026 — Access Control / IDOR Module Complete
+
 ### Completed
-- Authentication vulnerabilities — 14/14 PortSwigger labs
-- Response differencing (length, message text, timing) for username enumeration
-- Trust boundary violations: X-Forwarded-For rate-limit bypass, X-Forwarded-Host password reset poisoning
-- Stateful logic flaws: brute-force lockout counter reset abuse, asymmetric lock enforcement
-- Forgeable tokens: stay-logged-in cookie format reverse-engineered (base64 + MD5), cracked via crackstation
-- Chained real exploit: stored XSS used to exfiltrate a victim's cookie, then cracked offline for full account takeover
-- JSON parameter pollution: array injection in password field bypasses request-based brute-force limiting
-- Lab 8 and Lab 14 documented as watched — require Turbo Intruder / Burp macros + session handling rules for full hands-on completion, revisiting later
-- Identified 7 distinct authentication vulnerability root-cause categories across all 14 labs
-- Warm-up tasks completed through L29, N29, P29 (rotation now includes periodic SQLi/XSS recall drills)
-- Fixed git object corruption incident — recovered cleanly via fresh clone from GitHub, zero data loss
-- port_scanner_argparse.py: added --output flag, --verbose flag, IP validation via socket.inet_aton
+- Access Control / IDOR — 13/13 PortSwigger labs
+- Theory: vertical vs horizontal vs context-dependent access control, root causes
+  (unprotected functionality, identifier-based trust, platform misconfiguration,
+  multi-step process flaws)
+- Unprotected admin panels: obscure paths (guessed and discovered via page source)
+- Client-controlled authorization values: forged cookies, injected roleid fields
+- IDOR family: predictable ID parameters, leaked GUIDs, data leakage in redirect
+  bodies, password disclosure chained with IDOR, predictable static filenames
+- Layer/method/step-based bypasses: X-Original-URL header trust mismatch,
+  method-based access control (GET vs POST), multi-step process missing a
+  check on step 2, Referer header trusted as identity proof
+- Full module pattern summary: every bug reduces to "is there a check?" vs
+  "is the check trustworthy?"
+- Testing methodology internalized: comparison across user identity/privilege,
+  not across input values (distinct from SQLi/XSS approach)
 
 ### Currently Working On
-- Repo cleanup and documentation pass — removed superseded warmup drafts, junk scan-output files, fixed dead file references in README
+- Repo progress sync (this update)
 
 ### Next
-- Start Access Control / IDOR vulnerabilities on PortSwigger
-- Then: SSRF → CSRF
+- Start SSRF vulnerabilities on PortSwigger
+- Then: CSRF
 - Move to Stage 3 (Exploitation Fundamentals) after completing Stage 2

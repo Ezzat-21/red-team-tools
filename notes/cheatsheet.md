@@ -707,6 +707,7 @@ Lab 14 — Blind SQLi time-based retrieval — DONE
 '||(SELECT CASE WHEN (username='administrator' AND SUBSTR(password,POS,1)='CHAR') THEN pg_sleep(4) ELSE pg_sleep(0) END FROM users)--
 delay = correct character
 
+
 ======================================================
 WEB APP SECURITY — XSS (CROSS-SITE SCRIPTING)
 ======================================================
@@ -2131,6 +2132,119 @@ why it exists: "claims it came from an admin page" was treated as proof
                of being an admin — a header value is not an identity check
 fix: never use Referer (or any other client-supplied header) as an
      authorization mechanism — verify actual session/role server-side
+ 
+ 
+======================================================
+WEB APP SECURITY —  SSRF (SERVER-SIDE REQUEST FORGERY)
+======================================================
+What SSRF is: attacker makes the SERVER ITSELF send a request to a URL/location
+              of the attacker's choosing, instead of where the app intended
+              the vulnerable server acts as the attacker's proxy — server
+              makes the request, not the attacker's own browser
+
+where it comes from: any feature where server fetches a URL on user's behalf
+  - "check if this URL is reachable"
+  - "fetch a preview image/thumbnail from this link"
+  - "import a document from a URL"
+  - webhooks
+  - PDF generation from a URL
+  - internal microservice calls based on user input
+
+why it's dangerous - the core insight:
+  the server sits in a PRIVILEGED NETWORK POSITION the attacker can't reach
+  directly. SSRF lets attacker borrow the server's network position.
+  targets normally unreachable from outside:
+    - internal-only services/admin panels/APIs (no external exposure)
+    - cloud metadata endpoints: http://169.254.169.254/ (AWS/Azure/GCP) -
+      exposes instance credentials/IAM tokens - THE classic real-world
+      SSRF-to-cloud-credential-theft technique
+    - localhost/127.0.0.1 - services assuming "only the server can reach
+      this" is a security boundary - SSRF breaks that assumption
+    - firewall bypass - internal IP ranges blocked from external traffic,
+      but traffic FROM the trusted server to that range is often allowed
+
+two categories:
+  BASIC SSRF - forged request's response is visible directly in the app's
+               own response (e.g. price-checker shows you the fetched
+               page's content back)
+  BLIND SSRF - no response visible at all; detect via OUT-OF-BAND technique
+               (point server at attacker-controlled domain, watch own
+               server logs for the incoming request) - same detection
+               principle as XSS cookie exfiltration via exploit server
+
+validation bypass techniques (where the actual skill lives - flawed
+  blocklists/allowlists, not "no validation at all"):
+  - alternate IP representations to bypass 127.0.0.1 blocklist:
+    http://127.1, decimal IP notation, http://0.0.0.0
+  - OPEN REDIRECT on an allowed domain: app allows trusted-site.com,
+    but trusted-site.com has an open redirect elsewhere -> allow-check
+    passes on the allowed domain, then redirect sends request anywhere
+  - allowed-domain string tricks: http://attacker.com@trusted-site.com
+    (userinfo trick) or http://trusted-site.com.attacker.com (subdomain
+    trick) to satisfy a naive "contains trusted-site.com" check
+
+testing methodology: find any feature where the app fetches a URL you
+  influence -> try pointing it at 127.0.0.1/internal IPs/cloud metadata
+  endpoint -> if blocked, test bypass techniques above -> confirm via
+  visible response (basic) or OOB callback (blind)   
+
+Lab 1 — Basic SSRF against the local server — DONE
+mechanism: stockApi parameter takes a full URL, server fetches it with
+           ZERO validation/allowlist — will request ANY url handed to it
+method: normal request: stockApi=http://stock.weliketoshop.net:8080/
+        product/stock/check?productId=1&storeId=1
+        changed to: stockApi=http://localhost/admin -> 200 OK, admin
+        panel content returned directly in the app's own response
+        found delete link in the returned admin page ->
+        stockApi=http://localhost/admin/delete?username=carlos
+        -> 302 Found, carlos deleted
+category: BASIC SSRF (not blind) — response was visible directly in the
+          app's response, could read the admin page content and confirm
+          the deletion result
+why localhost worked: admin panel runs on the SAME machine as the web app
+                      itself (not a separate internal network) — reachable
+                      via localhost, just not linked/exposed to external
+                      users. Same "unlinked isn't the same as protected"
+                      lesson as Access Control Lab 1, but reached via a
+                      request forgery instead of a guessed URL path
+why it exists: no validation/allowlist at all on the server-side fetch —
+               the server will request whatever URL it's given
+fix: allowlist the specific internal hosts/URLs the feature is meant to
+     reach; never let user input directly control the full destination
+     of a server-side request
+
+Lab 2 — Basic SSRF against another back-end system (internal network scan) — DONE
+mechanism: same stockApi parameter, zero validation as Lab 1 — used to
+           scan an ENTIRE internal subnet, not just reach one known host
+
+method: sent base request to Intruder, set the last IP octet as the
+        payload position, swept 0-254 on port 8080 with no path
+        most addresses -> 500 Internal Server Error (connection-level
+        failure, nothing listening there at all)
+        192.168.0.226 -> 404 Not Found -- THIS is the real signal, not
+        a 200. A 404 still means a REAL web server responded (just not
+        at the base path) vs a 500 meaning no connection could be made
+        at all -- host discovery via SSRF = any real HTTP status vs a
+        connection failure, not "look for 200 specifically"
+        added /admin path to the found host -> 200 OK, admin panel content
+        returned -> found delete link -> stockApi=http://192.168.0.226:8080/
+        admin/delete?username=carlos -> 302 Found, carlos deleted
+
+why this matters as a technique: SSRF isn't just "reach one known internal
+  service" -- it can be used as an internal PORT/HOST SCANNER, using the
+  vulnerable server's own network position to map out what exists on a
+  subnet the attacker could never directly reach or scan themselves
+  (same "borrow the server's network position" concept from the theory
+  section, now applied to active discovery rather than a single target)
+
+why it exists: no validation/allowlist on the stockApi parameter (same
+               root cause as Lab 1), combined with the server being
+               positioned on an internal subnet unreachable externally
+fix: same as Lab 1 — allowlist specific internal hosts; additionally,
+     network segmentation should prevent the web server itself from
+     being able to reach arbitrary internal hosts on arbitrary ports
+     in the first place (defense in depth beyond just app-level fixes)     
+ 
                                                    
 ======================================================
 THINGS I STILL NEED TO PRACTICE

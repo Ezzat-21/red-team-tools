@@ -2245,7 +2245,134 @@ fix: same as Lab 1 — allowlist specific internal hosts; additionally,
      being able to reach arbitrary internal hosts on arbitrary ports
      in the first place (defense in depth beyond just app-level fixes)     
  
-                                                   
+Lab 3 — SSRF with blacklist-based input filter — DONE
+mechanism: TWO separate weak blacklist defenses stacked together
+
+defense 1 - incomplete IP blocklist:
+  http://localhost/ and http://127.0.0.1/ -> blocked
+  http://127.1/ -> 200 OK (bypass)
+  why it works: 127.1 is a valid ALTERNATE representation of 127.0.0.1 --
+  many IP parsers accept shorthand/non-standard notations that still
+  resolve to the same address, but a naive blocklist only matches the
+  exact string "127.0.0.1" or "localhost", not every equivalent form
+
+defense 2 - character-level filtering on the path, bypassed via
+  double URL-encoding:
+  http://127.1/admin -> blocked ("External stock check blocked")
+  single-encoded first 3 letters -> still blocked
+  double-encoded -> 200 OK
+  why it works: app performs ONE layer of URL-decoding before running its
+  filter check -- a single-encoded value gets decoded back to the blocked
+  raw text before the check runs, so it's still caught; a DOUBLE-encoded
+  value survives that one decode pass still looking encoded (passes the
+  filter), then gets decoded a SECOND time later when the request is
+  actually parsed/sent -- becoming the real blocked text only after
+  validation already passed
+
+method: stockApi=http://127.1/%25%36%31%25%36%34%25%36%64in/delete?
+        username=carlos -> 200 OK -> carlos deleted
+
+why it exists: blocklists enumerate specific bad strings/characters instead
+               of understanding the full space of equivalent representations
+fix: never rely on a blocklist for SSRF protection -- blocklists are
+     inherently incomplete (attacker only needs ONE unlisted equivalent
+     form). Use a strict allowlist instead, and validate against the
+     fully-decoded, fully-resolved value, not the raw input string
+     
+Lab 4 — SSRF with whitelist-based input filter — DONE
+mechanism: whitelist checks that "stock.weliketoshop.net" appears somewhere
+           in the stockApi value (naive substring check) rather than
+           correctly parsing the URL and checking the actual HOST component
+
+key URL concept - userinfo and fragment:
+  http://userinfo@host/path -- userinfo is data BEFORE @, host is what
+    comes AFTER @ -- by itself this doesn't bypass anything, since the
+    real destination host is still correct
+  http://host#fragment -- fragment (#...) is NEVER SENT to the server at
+    all, stripped by the client before the request goes out -- but a
+    naive string-based filter still SEES the fragment text since it's
+    checking the whole string, not the parsed/actual destination
+
+the bypass: http://localhost#@stock.weliketoshop.net
+  parser interprets "localhost" as the REAL host (# starts the fragment,
+  discarding everything after it, including stock.weliketoshop.net)
+  actual request goes to localhost
+  naive filter sees the full string, finds "stock.weliketoshop.net"
+  present as a substring somewhere -> passes validation
+  VALIDATOR and ACTUAL HTTP CLIENT disagree about what the real host is
+
+encoding needed: single %23 (encoded #) got mishandled/stripped somewhere
+  before reaching the check; DOUBLE encoding (%2523) survives one decode
+  pass as %23 (passes the naive check without looking like a special
+  char), then decodes AGAIN later when the URL is actually parsed for the
+  real request -> becomes the real # -> splits off the fragment as
+  intended. Indicates app does one layer of URL-decoding on input before
+  validating
+
+method: stockApi=http://localhost%2523@stock.weliketoshop.net/admin/
+        delete?username=carlos -> 200 OK -> carlos deleted
+
+why it exists: validator does STRING pattern matching instead of proper
+               URL parsing; doesn't account for userinfo/fragment syntax
+fix: parse the URL properly and check the actual resolved HOST component
+     against the whitelist, never do substring/pattern matching on the
+     raw URL string
+
+general SSRF filter-bypass principle (applies beyond just this lab): find
+  where the VALIDATION LOGIC's understanding of a value diverges from how
+  that value is ACTUALLY used downstream -- Lab 3 exploited incomplete
+  blocklist coverage + double-decoding; Lab 4 exploits substring matching
+  vs real URL structure -- both are the same underlying idea, expressed
+  through different mechanisms
+   
+Lab 5 — SSRF with filter bypass via open redirection — DONE
+mechanism: chains TWO SEPARATE vulnerabilities together
+
+vuln 1 - SSRF filter restricts stockApi to LOCAL/same-app paths only
+  http://192.168.0.12:8080/admin -> "Invalid external stock check url"
+  filter correctly rejects anything that LOOKS external
+
+vuln 2 - open redirect on an unrelated endpoint
+  GET /product/nextProduct?currentProductId=1&path=<any URL>
+  confirmed by testing path=https://www.google.com/ -> 302 Found,
+  followed it -> landed on google.com, proving NO validation on
+  redirect destination
+
+the chain: stockApi filter only checks that the SUPPLIED URL looks local
+  -- it has no way to know that a local URL might ITSELF redirect
+  somewhere external once actually followed
+  1. stockApi=/product/nextProduct?currentProductId=1&path=http://
+     192.168.0.12:8080/admin  -> PASSES filter (looks like a local path)
+  2. server fetches this local path (the open redirect endpoint)
+  3. that endpoint reads its own path param, issues a redirect to the
+     internal admin IP
+  4. server's HTTP client automatically FOLLOWS the redirect -> lands on
+     the real internal admin panel, despite the original URL never
+     looking external
+
+method: stockApi=/product/nextProduct?currentProductId=1&path=http://
+        192.168.0.12:8080/admin -> 200 OK, admin content returned ->
+        found delete link -> stockApi=/product/nextProduct?
+        currentProductId=1&path=http://192.168.0.12:8080/admin/
+        delete?username=carlos -> carlos deleted
+
+why it exists: SSRF filter validates the SUPPLIED url, but never accounts
+               for what happens AFTER that url is followed (a redirect
+               elsewhere) -- validation happens too early in the chain
+fix: (1) fix the open redirect independently -- validate/allowlist
+     redirect destinations on ANY endpoint that redirects based on user
+     input (2) SSRF-fetching code should disable automatic redirect-
+     following, or re-validate the FINAL destination after every redirect
+     hop, not just the initially-supplied URL
+
+general lesson: an SSRF protection can be logically airtight on its own
+  and still be defeated by an ENTIRELY UNRELATED bug (open redirect)
+  elsewhere in the same app. Always check whether "safe-looking" input
+  could lead somewhere unsafe once actually followed/processed -- this
+  is a real vulnerability-CHAINING technique, distinct from Labs 3-4
+  which broke the filter's own internal logic directly
+  
+                                                            
 ======================================================
 THINGS I STILL NEED TO PRACTICE
 ======================================================

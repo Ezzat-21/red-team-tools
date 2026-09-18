@@ -2372,7 +2372,77 @@ general lesson: an SSRF protection can be logically airtight on its own
   is a real vulnerability-CHAINING technique, distinct from Labs 3-4
   which broke the filter's own internal logic directly
   
-                                                            
+Lab 6 — Blind SSRF with out-of-band detection — WATCHED (Burp Community
+  Edition does not support Collaborator, requires Burp Pro)
+  
+mechanism: analytics feature fetches whatever URL is in the Referer header
+  on product page load -- but the fetch's response is NEVER shown back to
+  the user in any way -- true BLIND SSRF, no visible feedback whatsoever
+
+why response-based detection (Labs 1-5 style) doesn't work here: nothing
+  in the app's own output changes based on whether the fetch succeeds,
+  fails, or where it goes -- need an INDEPENDENT way to prove the request
+  happened at all
+
+technique - out-of-band (OOB) detection via Burp Collaborator:
+  Collaborator generates a unique, disposable subdomain and silently logs
+  any DNS lookup / HTTP request that ever hits it, from anywhere
+  put the generated Collaborator domain into the Referer header instead
+  of a real URL -> send request -> "poll" Collaborator's log
+  an interaction appearing = undeniable proof the server-side code
+  actually fetched that URL, even though the app itself showed nothing
+  conceptually identical to Authentication's exploit-server cookie
+  exfiltration technique (Lab 8/10) -- using an external listener as
+  proof instead of the app's own response
+
+why it exists: analytics feature fetches attacker-controlled Referer
+               value with zero validation and zero visibility -- the
+               "blind" nature doesn't make it less dangerous, just
+               harder to DETECT
+fix: never fetch arbitrary attacker-controlled headers server-side;
+     if analytics needs referrer data, validate/allowlist it strictly
+
+Lab 7 — Blind SSRF with Shellshock exploitation — WATCHED (Requires Burp Pro — plus requires
+  crafting/understanding a Shellshock payload)
+
+mechanism: chains Lab 6's blind-SSRF-via-Referer technique with the
+  Shellshock vulnerability (CVE-2014-6271) on an internal 192.168.0.X
+  server on port 8080
+
+what Shellshock is: certain older Bash versions execute arbitrary
+  commands smuggled inside a specially crafted environment variable,
+  using the pattern: () { :; }; <command>
+  if user input reaches an environment variable passed to a vulnerable
+  Bash shell (common in old CGI scripts), this achieves REMOTE COMMAND
+  EXECUTION, not just a fetched URL
+
+the chain:
+  1. no direct network path to the internal 192.168.0.X target exists
+  2. but Lab 6's blind SSRF via Referer header CAN reach it (server-side
+     fetch, not attacker's own browser)
+  3. Referer payload = Shellshock string targeting the internal IP:port,
+     e.g. () { :; }; <command that curls output to Collaborator domain>
+  4. internal server's vulnerable CGI script processes the string as an
+     environment variable -> Shellshock bug triggers -> command actually
+     EXECUTES on that internal machine
+  5. still blind (no direct response) -> payload itself exfiltrates the
+     result via A SECOND out-of-band request -- pipes command output
+     (OS username) into a curl request aimed at Collaborator -> answer
+     shows up in Collaborator's logged interaction
+
+why this matters beyond Lab 6: Lab 6 proves SSRF exists (arbitrary
+  fetch capability). Lab 7 shows the REAL-WORLD ceiling of that access --
+  pivoting from "server will fetch a URL for me" to full remote code
+  execution + data exfiltration on an internal machine never directly
+  reachable, entirely blind throughout
+
+why it exists: (1) same blind SSRF root cause as Lab 6 (2) unpatched
+               legacy Bash on an internal server reachable only via SSRF
+fix: (1) same as Lab 6 (2) patch Shellshock-vulnerable Bash versions;
+     network segmentation should also prevent the web server itself from
+     reaching arbitrary internal hosts/ports in the first place
+  
+                                                              
 ======================================================
 THINGS I STILL NEED TO PRACTICE
 ======================================================

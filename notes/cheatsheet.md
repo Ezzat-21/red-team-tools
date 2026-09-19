@@ -162,6 +162,13 @@ command: find / -name "id_rsa" -o -name "id_dsa" 2>/dev/null
 finding: /home/msfadmin/.ssh/id_rsa exists
 follow-up: check ls -la permissions — only exploitable if world/group readable
 
+Kali systemd services check: [DONE]
+command: systemctl list-units --type=service --state=running
+finding: 19 standard desktop/system services (display manager, dbus,
+         NetworkManager, power management, etc.) — nothing unexpected
+why it matters: baseline for "what should normally be running" — makes
+                it easier to spot something abnormal later if it appears
+
 ======================================================
 STAGE 3 PRIVESC TARGETS — METASPLOITABLE SUID BINARIES
 ======================================================
@@ -459,7 +466,19 @@ result: confirmed IRC/UnrealIRCd on port 6667, host irc.Metasploitable.LAN
 next step for Stage 3: nmap version alone doesn't confirm exploitable version —
                        banner grab via nc for exact version string before
                        attempting backdoor trigger (AB; + shell command over IRC)
-                                             
+
+Kali localhost scan vs Metasploitable comparison: [DONE]
+command: nmap -sV localhost
+result: 0 open ports on Kali (all 1000 scanned closed)
+why the difference: Kali is an ATTACK workstation — nothing needs to
+                    listen for incoming connections, it only connects OUT
+                    Metasploitable is deliberately built as a TARGET —
+                    packed with listening, vulnerable services
+rule of thumb: a clean attack box should have near-zero open ports —
+               anything unexpected listening on your OWN Kali later is
+               worth investigating immediately (unintended install or
+               unauthorized access)
+                                                            
 ======================================================
 SSH
 ======================================================

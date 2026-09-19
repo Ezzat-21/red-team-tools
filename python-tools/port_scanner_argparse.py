@@ -11,6 +11,7 @@ parser.add_argument("-e", "--end", type=int, default=1025)
 parser.add_argument("-T", "--timeout", type=float, default=0.1)
 parser.add_argument("-o", "--output",default=None)
 parser.add_argument("-v","--verbose",action="store_true")
+parser.add_argument("-c","--common", action="store_true")
 args = parser.parse_args()
 
 services = {
@@ -31,11 +32,18 @@ except socket.error:
 if args.output is None:
     args.output = f"/home/kali/red-team-tools/python-tools/scan_{args.target}_{TIMESTAMP}.txt"
 
-print(f"Scanning {args.target} ports {args.start}-{args.end}...")
+if args.common:
+    ports = services.keys()
+    print(f"Scanning common ports...")
+else:
+    ports = range(args.start, args.end + 1)
+    print(f"Scanning {args.target} ports {args.start}-{args.end}...")
+
+
 
 with open(args.output, "w") as f:
     f.write(f"Scan of {args.target} — {TIMESTAMP}\n\n")
-    for port in range(args.start, args.end + 1):
+    for port in ports:
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         s.settimeout(args.timeout)
         result = s.connect_ex((args.target, port))

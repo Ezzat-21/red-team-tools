@@ -2460,6 +2460,70 @@ why it exists: (1) same blind SSRF root cause as Lab 6 (2) unpatched
 fix: (1) same as Lab 6 (2) patch Shellshock-vulnerable Bash versions;
      network segmentation should also prevent the web server itself from
      reaching arbitrary internal hosts/ports in the first place
+
+======================================================
+WEB APP SECURITY —  CSRF (CROSS-SITE REQUEST FORGERY)
+======================================================  
+What CSRF is: attacker tricks a victim's browser into sending a state-
+              changing request to a site the victim is authenticated on,
+              WITHOUT the victim intending or knowing it happened
+              attacker never reads anything, never steals a session token
+              -- exploits that browsers AUTOMATICALLY attach cookies to
+              every request sent to a domain, regardless of which page
+              triggered that request
+
+root cause in one sentence: server cannot distinguish "a request the user
+  genuinely intended to send" from "a request their browser was tricked
+  into sending" -- both look identical (valid cookie, correct destination,
+  well-formed params). Vulnerability is LACK OF PROOF OF INTENT, not
+  broken authentication -- the user really is logged in
+
+three required conditions:
+  1. a RELEVANT/STATE-CHANGING action exists (transfer money, change
+     email, delete account) -- pointless against pages that only display
+     data
+  2. COOKIE-BASED session handling -- the entire attack depends on the
+     browser's automatic cross-site cookie attachment behavior
+  3. NO UNPREDICTABLE REQUEST PARAMETERS -- attacker must be able to
+     construct the entire request in advance; only the cookie (filled in
+     automatically by victim's browser) can be missing
+
+two exploitation types:
+  GET-based CSRF -- state-changing action fires via a simple GET request
+    easiest to exploit: NO form needed, no click needed
+    <img src="https://target.com/email/change?email=attacker@evil.com">
+    fires automatically the instant the image tries to load
+  POST-based CSRF -- action requires a POST body, needs a small amount
+    of attacker page machinery: auto-submitting hidden form
+    <form action="https://target.com/email/change" method="POST">
+      <input type="hidden" name="email" value="attacker@evil.com">
+    </form>
+    <script>document.forms[0].submit()</script>
+    victim visits attacker's page -> form auto-submits via JS instantly
+    -> browser attaches victim's real session cookie automatically
+
+prevention (why each one works):
+  CSRF TOKENS -- random, unpredictable, per-session/per-request token
+    embedded in every form; request must include the exact matching
+    token to succeed. Attacker's cross-site page can't read the real
+    page's token (same-origin policy blocks it) -- directly defeats
+    condition 3 by ADDING an unpredictable parameter
+  SAMESITE COOKIES (Strict/Lax) -- tells browser NOT to attach this
+    cookie to requests originating from a different site -- attacks
+    the actual ROOT mechanism (automatic cross-site cookie attachment)
+    rather than adding a token check
+  Referer/Origin header validation -- verify request actually came from
+    own domain -- weaker/defense-in-depth, headers can sometimes be
+    stripped/manipulated in edge cases
+  re-authentication for sensitive actions (re-enter password) -- even if
+    CSRF succeeds in submitting the request, attacker can't supply
+    something they don't know
+
+testing methodology: find a state-changing action -> check if it uses
+  cookie-based sessions -> check if a CSRF token (or other unpredictable
+  param) is required and actually VALIDATED server-side (not just
+  present but ignored) -> if missing/unvalidated, build a PoC page
+  (auto-submitting form or img tag) to prove exploitability
   
                                                               
 ======================================================

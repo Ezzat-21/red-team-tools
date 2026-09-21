@@ -2564,7 +2564,78 @@ why it exists: server performs the email change based purely on a valid
 fix: implement a CSRF token validated server-side on this endpoint (see
      CSRF theory section) and/or SameSite cookie attribute
      
-                                                                   
+Lab 2 — CSRF where token validation depends on request method — DONE
+credentials: wiener:peter
+
+mechanism: server's CSRF-token validation logic only EXECUTES when the
+  request method is POST -- the underlying change-email functionality
+  itself still accepts GET requests to trigger the same action, but the
+  code path that checks for a csrf parameter is never invoked for GET
+
+method: same request, same endpoint, method changed from POST to GET,
+  csrf parameter omitted entirely
+  <form action=".../my-account/change-email" method="get" target=
+  "csrf-iframe"><input type="hidden" name="email" value="..."></form>
+  <script>document.forms[0].submit()</script>
+  -> email changed, no token required at all
+
+why it exists: CSRF protection was implemented as method-specific
+  middleware/logic (only guards POST) rather than protecting the
+  ENDPOINT/ACTION regardless of which HTTP method reaches it
+fix: enforce CSRF token validation for the endpoint/action itself,
+  independent of HTTP method -- ideally also reject unexpected methods
+  outright if the action was only ever meant to be reached via POST
+
+Lab 3 — CSRF where token validation depends on token being present — DONE
+credentials: wiener:peter
+
+mechanism: server validates the csrf token VALUE only if the parameter
+  is present in the request at all -- there is no separate check
+  enforcing that the parameter must exist in the first place
+  wrong token value -> 400 "Invalid CSRF token" (validation runs, fails)
+  token parameter OMITTED entirely -> 302 Found (validation never runs,
+  request proceeds as if there were no protection at all)
+
+method: same exploit HTML as Lab 1, simply never including a csrf field
+  at all -- request succeeds without any token whatsoever
+
+why it exists: validation logic checks "IF token present, does it match"
+  but never enforces "token MUST be present" as its own separate rule --
+  protection exists and works correctly, but is entirely OPTIONAL
+distinct from Lab 1: Lab 1 = no CSRF protection exists at all
+                      Lab 3 = protection EXISTS and works, but attacker
+                      can simply choose not to trigger it by omitting
+                      the field
+fix: explicitly require the csrf parameter to be present AND valid --
+     missing parameter must be treated as a validation failure, not a
+     free pass
+
+Lab 4 — CSRF where token is not tied to user session — DONE
+credentials: wiener:peter / carlos:montoya (two accounts used to prove
+             the bug)
+
+mechanism: token IS mandatory here (missing token -> rejected, unlike
+  Lab 3) and IS checked for authenticity (must be a real, previously-
+  issued token) -- but is NEVER checked against the session/account
+  actually making the request. Token validated for "is this real" but
+  not "does this belong to you"
+
+method: logged in as carlos, inspected page, captured HIS valid csrf
+  token -> built exploit form using carlos's token but targeting
+  wiener's session/account -> server accepted it (any valid token
+  works regardless of which account it was issued to)
+  needed TWO real accounts specifically to prove this -- can't detect
+  this bug from a single account's traffic alone, since one account's
+  own token always "belongs" to it trivially
+
+why it exists: token generation/storage is not bound to the session
+  that requested it -- server checks a global pool of "valid tokens
+  that exist" instead of "is this THE token for THIS session"
+fix: bind each CSRF token explicitly to the session that generated it;
+     validation must check token-to-session ownership, not just
+     token authenticity against a general valid-token list
+
+                                                                     
 ======================================================
 THINGS I STILL NEED TO PRACTICE
 ======================================================

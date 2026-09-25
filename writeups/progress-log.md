@@ -86,10 +86,29 @@ Ahmed Ezzat — Red Team Roadmap
 - Testing methodology internalized: comparison across user identity/privilege,
   not across input values (distinct from SQLi/XSS approach)
 
+## September 2026 — SSRF, CSRF, and Stage 2 Completion
+
+### Completed
+- SSRF — 5/7 PortSwigger labs (basic SSRF via unvalidated parameters, internal network
+  scanning via SSRF, blacklist/whitelist filter bypasses, open redirect chaining;
+  Labs 6-7 documented as watched — blind SSRF via Burp Collaborator OOB detection and
+  Shellshock chaining require Burp Pro)
+- CSRF — 8/8 PortSwigger labs (no defenses, method-based bypass, missing-parameter
+  bypass, non-session-bound tokens, double-submit cookie weakness via CRLF injection,
+  Referer validation bypasses via missing header and naive substring matching)
+- Stage 2 — Web App Security — fully complete across all 6 vulnerability categories
+- port_scanner_argparse.py: added --common flag for scanning well-known ports only
+
 ### Currently Working On
-- Repo progress sync (this update)
+- Reviewing all of Stage 2 via active recall (explaining each vulnerability class from
+  memory before checking cheatsheet) rather than passive re-reading
+- Cold-redoing select PortSwigger labs without notes to test real retention
+- Starting Hacker101 CTF as a bridge between academy labs and real-world bug hunting
 
 ### Next
-- Start SSRF vulnerabilities on PortSwigger
-- Then: CSRF
-- Move to Stage 3 (Exploitation Fundamentals) after completing Stage 2
+- Complete Stage 2 review + Hacker101 practice
+- Begin Stage 3 — Exploitation Fundamentals (TCM Practical Ethical Hacking +
+  TryHackMe Jr Pentester path) — full recon-to-report methodology, Metasploit,
+  privilege escalation, buffer overflows, password cracking
+- Consider a low-stakes VDP (Vulnerability Disclosure Program) for real-world practice
+  once Stage 3 is underway

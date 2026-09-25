@@ -11,12 +11,13 @@ Security tools, notes, writeups and lab reports built during my Red Team learnin
   - XSS — 27/30 labs complete with structured methodology (28, 30 remaining; 22-23-25-26-29 watched only — Burp Pro or expert level)
   - Authentication — 14/14 PortSwigger labs complete (Lab 8 and Lab 14 documented as watched — Turbo Intruder / Burp macros required for full hands-on completion)
   - Access Control / IDOR — 13/13 PortSwigger labs complete
-  - Currently starting: SSRF → then CSRF
-- Stage 3 — Exploitation Fundamentals — UPCOMING
+  - SSRF — 5/7 labs complete (Labs 6-7 watched — require Burp Pro for Collaborator OOB detection)
+  - CSRF — 8/8 PortSwigger labs complete
+- Currently: reviewing Stage 2 material + Hacker101 CTF practice before Stage 3
+- Stage 3 — Exploitation Fundamentals — NEXT
 - Stage 4 — Active Directory — UPCOMING
 - Stage 5 — OSCP Prep — UPCOMING
 - Stage 6 — Red Team Ops — UPCOMING
-
 ## Python Tools
 
 ### banner_grabber.py
@@ -47,7 +48,7 @@ Tests if target allows anonymous FTP login with full handshake, including upload
 Port scanner with timestamped file output support.
 
 ### port_scanner_argparse.py
-Advanced argparse-based port scanner — configurable target, port range, timeout, output file, and verbose mode (shows closed ports too). Validates target IP format before scanning.
+Advanced argparse-based port scanner — configurable target, port range, timeout, output file, verbose mode (shows closed ports too), and a `--common` flag to scan only well-known ports. Validates target IP format before scanning.
 
 ### port_and_targets/main.py
 Scans a single port across multiple targets read from a file.
@@ -59,7 +60,8 @@ Simulates brute-force login attempts against a target with timestamped logging.
 
 - `cheatsheet.md` — comprehensive reference covering Linux, Windows, networking, SSH,
   SQLi (14 labs), XSS (27 labs), Authentication (14 labs), Access Control/IDOR (13 labs),
-  OPSEC routine, credentials found, Python tools, Metasploitable services
+  SSRF (5 labs + 2 watched), CSRF (8 labs), OPSEC routine, credentials found, Python tools,
+  Metasploitable services
 
 ## Writeups
 
